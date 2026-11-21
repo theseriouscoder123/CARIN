@@ -1,0 +1,14 @@
+# Render's free tier sleeps after ~15 minutes idle and needs ~30s to wake. This pings the
+# indexer so the public dashboard is warm when a judge opens it. GitHub may delay
+# scheduled runs; open the dashboard a minute before the pitch regardless.
+name: keep-warm
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - run: curl -fsS --max-time 90 https://cairn-indexer.onrender.com/api/v1/health

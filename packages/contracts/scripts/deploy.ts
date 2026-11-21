@@ -7,6 +7,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { network } from "hardhat";
 import { getAddress, keccak256, stringToBytes, type Address } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 
 const LOCAL_CHAIN_ID = 31337;
 
@@ -19,7 +20,12 @@ const chainId = await publicClient.getChainId();
 function attesterSet(): Address[] {
   const fromEnv = process.env.CAIRN_ATTESTERS;
   if (fromEnv !== undefined && fromEnv.trim() !== "") return fromEnv.split(",").map((a) => getAddress(a.trim()));
-  if (chainId !== LOCAL_CHAIN_ID) throw new Error("CAIRN_ATTESTERS is required on non-local chains");
+  if (chainId !== LOCAL_CHAIN_ID) {
+    // Public chains: the attester addresses derived from the locally generated keys file.
+    const keys = ["CAIRN_ATTESTER_A_KEY", "CAIRN_ATTESTER_B_KEY", "CAIRN_ATTESTER_C_KEY"].map((k) => process.env[k]);
+    if (keys.some((k) => !k)) throw new Error("set CAIRN_ATTESTERS, or generate .cairn/keys/base-sepolia.env");
+    return keys.map((k) => privateKeyToAccount(k as `0x${string}`).address);
+  }
   // local dev convention: #0 deployer/admin, #1 publisher, #2-#4 attesters a/b/c
   const local = others.slice(1, 4).map((w) => w.account.address);
   if (local.length !== 3) throw new Error("expected Hardhat accounts #2-#4 for local attesters");

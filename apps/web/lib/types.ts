@@ -83,6 +83,7 @@ export interface AttestersResponse {
   threshold: number;
   attesters: AttesterView[];
   unreachable: { url: string; error?: string }[];
+  healthConfigured: boolean;
   asOfBlock: number;
 }
 

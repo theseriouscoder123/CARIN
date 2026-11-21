@@ -11,7 +11,10 @@
     "lint": "eslint --no-error-on-unmatched-pattern test scripts",
     "node": "hardhat node",
     "deploy:local": "hardhat run scripts/deploy.ts --network localhost",
-    "seed:local": "hardhat run scripts/seed.ts --network localhost"
+    "seed:local": "hardhat run scripts/seed.ts --network localhost",
+    "deploy:base-sepolia": "hardhat run scripts/deploy.ts --network baseSepolia",
+    "fund:base-sepolia": "hardhat run scripts/fund.ts --network baseSepolia",
+    "seed": "hardhat run scripts/seed.ts"
   },
   "dependencies": {
     "@openzeppelin/contracts": "5.6.1"

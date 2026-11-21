@@ -250,6 +250,7 @@ describe("API", () => {
     expect(a).toMatchObject({ label: "attester-a", online: true, corroborationCount: 2 });
     expect(body.attesters.find((x: { address: string }) => x.address === C)).toMatchObject({ online: false, divergenceCount: 1 });
     expect(body.unreachable).toEqual([{ url: "http://b", error: "ECONNREFUSED" }]);
+    expect(body.healthConfigured).toBe(true);
   });
 
   it("/lookup resolves a name to its packageId and indexed status", async () => {

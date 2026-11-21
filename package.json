@@ -26,7 +26,12 @@
     "demo:verify": "node packages/cli/dist/index.js verify --lockfile fixtures/demo/consumer/package-lock.json",
     "test:integration": "node test/integration/demo-path.mjs",
     "db:up": "docker compose up -d --wait mongo",
-    "db:down": "docker compose down"
+    "db:down": "docker compose down",
+    "deploy:base-sepolia": "pnpm --filter @cairn/contracts deploy:base-sepolia",
+    "fund:base-sepolia": "pnpm --filter @cairn/contracts fund:base-sepolia",
+    "attesters:base-sepolia": "pnpm --filter @cairn/attester build && node apps/attester/scripts/up.mjs --keys .cairn/keys/base-sepolia.env --rpc https://sepolia.base.org --registry http://127.0.0.1:4873",
+    "cairn:base-sepolia": "node fixtures/demo/scripts/testnet-env.mjs node packages/cli/dist/index.js",
+    "seed:base-sepolia": "node fixtures/demo/scripts/testnet-env.mjs pnpm --filter @cairn/contracts seed"
   },
   "devDependencies": {
     "@cairn/cli": "workspace:*",

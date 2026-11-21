@@ -165,7 +165,7 @@ workspace package; it will corrupt the lockfile.
 | Build orchestration | Turborepo | caching on; `turbo.json` defines the graph |
 | Language | TypeScript 5.x, `strict: true` | ESM throughout (`"type": "module"`) |
 | Contracts | Solidity 0.8.26, Hardhat (TS) | OpenZeppelin for `ECDSA`, `EIP712` |
-| Chain (dev) | **Hardhat Network, local only** | Testnet deployment deferred — see §4.1 |
+| Chain | Hardhat Network (dev), **Base Sepolia** (public) | see §4.1 |
 | Chain client | viem | not ethers; viem everywhere, including Hardhat tests |
 | Frontend | Next.js 16 App Router, Tailwind, wagmi + viem | |
 | API | Express 4, MongoDB (Atlas or local Docker) | |
@@ -174,8 +174,10 @@ workspace package; it will corrupt the lockfile.
 
 ### 4.1 Chain target
 
-Development runs against **local Hardhat Network only**. Do not add testnet RPC URLs,
-faucet steps, or deployment scripts for a public chain until that decision is made.
+**Decided: Base Sepolia (chain 84532)** for the public deployment; local Hardhat Network
+for development and `pnpm test:integration`. Local chain + tunnel is the documented
+fallback (`docs/DEMO-RUNBOOK.md` §3b). Testnet keys are generated locally into
+`.cairn/keys/base-sepolia.env` (gitignored) and must never be committed or pasted anywhere.
 
 Keep deployment chain-agnostic so the switch is a config change, not a refactor:
 all addresses and the chain ID come from env, never hardcoded.

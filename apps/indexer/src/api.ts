@@ -200,6 +200,9 @@ export function createApi(deps: ApiDeps): Express {
         threshold: policy.threshold,
         attesters,
         unreachable: health.filter((h) => !h.health).map((h) => ({ url: h.url, error: h.error })),
+        // false when no attester health URLs are configured (e.g. attesters run on a
+        // private machine): the dashboard must then not call them "offline".
+        healthConfigured: health.length > 0,
         unregistered: unregistered.map((h) => h.health),
         asOfBlock: asOf()
       });

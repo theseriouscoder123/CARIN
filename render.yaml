@@ -1,0 +1,33 @@
+# Render Blueprint for the CAIRN indexer (Render → New → Blueprint → this repo).
+# Free web service: sleeps after ~15 min idle and wakes on the next request; with MongoDB
+# it resumes from its checkpoint, without it it rebuilds from chain events.
+services:
+  - type: web
+    name: cairn-indexer
+    runtime: node
+    plan: free
+    branch: main
+    buildCommand: npx -y pnpm@12.18.0 install --frozen-lockfile && npx -y pnpm@12.18.0 turbo run build --filter=@cairn/indexer
+    startCommand: node apps/indexer/dist/index.js
+    healthCheckPath: /api/v1/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 22.12.0
+      - key: HOST
+        value: 0.0.0.0
+      - key: CAIRN_RPC_URL
+        value: https://sepolia.base.org
+      # The registry address is discovered from packages/contracts/deployments/84532.json.
+      - key: CORS_ORIGINS
+        value: https://cairn-two-ecru.vercel.app
+      # Attesters run on private machines; their /health is not reachable from here.
+      - key: CAIRN_ATTESTER_URLS
+        value: ""
+      - key: CAIRN_POLL_INTERVAL_MS
+        value: "4000"
+      - key: MONGODB_DB
+        value: cairn
+      # MongoDB Atlas connection string — set it in the Render dashboard, never in git.
+      - key: MONGODB_URI
+        sync: false

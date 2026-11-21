@@ -164,7 +164,9 @@ export function AttesterCards({ large = false }: { large?: boolean }) {
               <div key={t.address} className={`rounded-xl border p-4 ${t.online ? "border-emerald-900 bg-emerald-950/20" : "border-neutral-800 bg-neutral-900/60"}`}>
                 <div className="flex items-center justify-between">
                   <p className="text-lg font-semibold">{t.label ?? "unlabelled attester"}</p>
-                  <span className={`text-sm font-semibold ${t.online ? "text-emerald-300" : "text-neutral-400"}`}>{t.online ? "● online" : "○ offline"}</span>
+                  <span className={`text-sm font-semibold ${t.online ? "text-emerald-300" : "text-neutral-400"}`}>
+                    {t.online ? "● online" : d.healthConfigured ? "○ offline" : "health not exposed"}
+                  </span>
                 </div>
                 <p className="mt-1 font-mono text-sm text-neutral-400" title={t.address}>
                   {t.address}
@@ -197,8 +199,10 @@ export function AttesterCards({ large = false }: { large?: boolean }) {
             ))}
           </div>
           <p className="mt-3 text-sm text-neutral-500">
-            Attester set and threshold ({d.threshold} of {d.attesters.length}) are read from QuorumPolicy events; online status from each
-            attester process&apos;s own /health endpoint.
+            Attester set and threshold ({d.threshold} of {d.attesters.length}) are read from QuorumPolicy events;{" "}
+            {d.healthConfigured
+              ? "online status from each attester process's own /health endpoint."
+              : "these attesters run on private machines and do not expose /health here — their on-chain activity above is the evidence."}
             {d.unreachable.length > 0 ? ` ${d.unreachable.length} configured health endpoint(s) unreachable.` : ""}
           </p>
         </>

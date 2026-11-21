@@ -178,6 +178,59 @@ npx cairn verify --lockfile fixtures/demo/consumer/package-lock.json
 
 Then the GitHub Actions tab: a **red CI run** on the demo repo, failed by `cairn verify`.
 
+## 3b. Public deployment (Base Sepolia)
+
+The judged setup. Nothing on a public host needs to reach the laptop, so no tunnel.
+
+| Piece | Where |
+|---|---|
+| Contracts | Base Sepolia (chain 84532) — `packages/contracts/deployments/84532.json` |
+| Dashboard | Vercel — https://cairn-two-ecru.vercel.app |
+| Indexer | Render free web service (`render.yaml`) + MongoDB Atlas free |
+| Attesters, Verdaccio, CLI | The presenter's laptop; they only make outbound calls |
+
+One-time setup:
+
+```bash
+# keys are generated locally into .cairn/keys/base-sepolia.env (gitignored)
+# fund ONLY the deployer from the Coinbase Developer Platform faucet, then:
+pnpm fund:base-sepolia         # tops up publisher + 3 attesters from the deployer
+pnpm deploy:base-sepolia       # writes deployments/84532.json — commit it
+pnpm seed:base-sepolia         # real npm artifacts, attested on Base Sepolia
+```
+
+Demo day, on the laptop:
+
+```bash
+pnpm registry:up
+pnpm attesters:base-sepolia    # three processes, keys from .cairn/keys, RPC Base Sepolia
+pnpm cairn:base-sepolia publish fixtures/demo/cairn-demo-greeting-1.0.0.tgz
+pnpm cairn:base-sepolia verify --lockfile fixtures/demo/consumer/package-lock.json
+```
+
+Open the public dashboard a minute before the pitch: the free Render instance sleeps after
+about 15 minutes idle and takes roughly 30 seconds to wake. Transaction links go to
+https://sepolia.basescan.org, so judges can check every attestation on a public explorer.
+
+If the public RPC rate-limits, set `CAIRN_BASE_SEPOLIA_RPC_URL` (laptop) and
+`CAIRN_RPC_URL` (Render) to a free provider endpoint; nothing else changes.
+
+### Fallback: local chain + tunnel
+
+Only if the testnet path fails. Run the local stack (§2), then expose the RPC and the
+indexer with Cloudflare quick tunnels (no account needed):
+
+```bash
+cloudflared tunnel --url http://localhost:8545    # → https://<a>.trycloudflare.com
+cloudflared tunnel --url http://localhost:4100    # → https://<b>.trycloudflare.com
+```
+
+Set the Vercel env to those URLs (`NEXT_PUBLIC_RPC_URL`, `NEXT_PUBLIC_INDEXER_URL`,
+`NEXT_PUBLIC_REGISTRY_ADDR` from `deployments/31337.json`), add the Vercel origin to the
+indexer's `CORS_ORIGINS`, and redeploy (`npx vercel deploy --prod`, about a minute — the
+`NEXT_PUBLIC_*` values are baked in at build time). If even that fails, screenshare the
+local dashboard at http://localhost:3000: everything works identically.
+
 ## 4. Fallbacks
 
 | Failure | Response |

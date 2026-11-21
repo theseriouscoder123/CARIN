@@ -39,6 +39,8 @@ runs:
     - uses: actions/setup-node@v5
       with:
         node-version: 22
+        # setup-node v5 auto-enables pnpm caching from packageManager; pnpm is not on PATH here
+        package-manager-cache: false
 
     - name: Build the cairn CLI
       shell: bash

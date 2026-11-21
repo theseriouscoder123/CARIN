@@ -33,6 +33,8 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+          # setup-node v5 auto-enables pnpm caching from packageManager; pnpm is not on PATH here
+          package-manager-cache: false
       - name: Start a local npm registry (Verdaccio) inside the runner
         run: |
           npx -y verdaccio@6.11.2 --config fixtures/demo/verdaccio.yaml > verdaccio.log 2>&1 &

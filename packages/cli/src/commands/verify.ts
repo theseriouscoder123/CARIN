@@ -75,6 +75,8 @@ export interface VerifyReport {
   lockfile: string;
   checked: number;
   summary: Partial<Record<Verdict, number>>;
+  /** How much of this dependency tree CAIRN protects: attested on-chain, and fully verified. */
+  coverage: { total: number; attested: number; verified: number; percent: number };
   policy: { source: string; failOn: Verdict[]; minCorroborations: number };
   notes: string[];
   results: DependencyResult[];
@@ -245,6 +247,11 @@ export async function runVerify(opts: VerifyOptions, deps: VerifyDeps): Promise<
     lockfile: opts.lockfile,
     checked: results.length,
     summary,
+    coverage: (() => {
+      const attested = results.filter((r) => ["PASS", "UNDER_QUORUM", "DIVERGENT", "CONTESTED"].includes(r.verdict)).length;
+      const verified = results.filter((r) => r.verdict === "PASS").length;
+      return { total: results.length, attested, verified, percent: results.length === 0 ? 0 : Math.round((attested / results.length) * 1000) / 10 };
+    })(),
     policy: { source: opts.policy.source, failOn: opts.policy.failOn, minCorroborations: opts.policy.minCorroborations },
     notes: [...opts.policy.notes, ...(deps.chain === undefined && deps.chainError ? [deps.chainError] : [])],
     results,

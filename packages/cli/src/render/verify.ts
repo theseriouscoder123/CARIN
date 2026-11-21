@@ -57,6 +57,10 @@ export function renderVerify(report: VerifyReport, s: Style): string {
   if (n("UNATTESTED")) out.push(`  ${s.yellow("⚠")}${count(n("UNATTESTED"))}  unattested`);
   if (n("CONTESTED")) out.push(`  ${s.red("✗")}${count(n("CONTESTED"))}  ${s.bold("CONTESTED")}`);
   if (n("DIVERGENT")) out.push(`  ${s.red("✗")}${count(n("DIVERGENT"))}  ${s.bold("DIVERGENT")}`);
+  const cov = report.coverage;
+  if (cov && cov.total > 0) {
+    out.push("", `  ${s.dim("coverage")}   ${cov.attested} of ${cov.total} dependencies attested on-chain (${cov.percent}%) · ${cov.verified} fully verified`);
+  }
   if (n("UNKNOWN")) out.push(`  ${s.red("✗")}${count(n("UNKNOWN"))}  unknown`);
 
   const rule = `  ${s.dim("─".repeat(RULE_WIDTH - 1))}`;

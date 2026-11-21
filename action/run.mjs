@@ -48,6 +48,7 @@ if (!report || report.error) {
   const verdict = code === 0 ? "✅ PASSED" : code === 1 ? "❌ BLOCKED" : "⚠️ COULD NOT VERIFY (failing closed)";
   lines.push(`## CAIRN verify — ${verdict}`, "");
   lines.push(`\`${report.lockfile}\` · ${report.checked} dependencies · fail on: ${report.policy.failOn.join(", ")}`, "");
+  if (report.coverage) lines.push(`**Coverage:** ${report.coverage.attested} of ${report.coverage.total} dependencies attested on-chain (${report.coverage.percent}%) · ${report.coverage.verified} fully verified`, "");
   lines.push("| Verdict | Count |", "|---|---|");
   for (const [k, v] of Object.entries(s)) lines.push(`| ${k === "PASS" ? "✅" : k === "UNATTESTED" || k === "UNDER_QUORUM" ? "⚠️" : "❌"} ${k} | ${v} |`);
   const failing = report.results.filter((r) => r.failing);

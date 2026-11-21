@@ -8,6 +8,7 @@
 // is precisely what the competition rules prohibit.
 import { defaultPublishDeps, runPublish } from "@cairn/cli/publish";
 import { defaultRegistryUrl, defaultRpcUrl, payloadDir } from "@cairn/cli/config";
+import { readFileSync } from "node:fs";
 import { getChainId } from "@cairn/core";
 import { privateKeyToAccount } from "viem/accounts";
 
@@ -15,10 +16,14 @@ const LOCAL_CHAIN_ID = 31337;
 // Hardhat dev account #1: a published test key, only ever used against a local chain.
 const LOCAL_PUBLISHER_KEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
 
-const SEED_PACKAGES = (process.env.CAIRN_SEED_PACKAGES ?? "left-pad@1.3.0,is-number@7.0.0,ms@2.1.3,escape-html@1.0.3")
-  .split(",")
-  .map((s) => s.trim())
-  .filter((s) => s !== "");
+// CAIRN_SEED_FILE: a JSON file with { "packages": ["name@version", ...] } (e.g. the public
+// baseline in fixtures/demo/baseline-packages.json); else CAIRN_SEED_PACKAGES; else defaults.
+const SEED_PACKAGES: string[] = process.env.CAIRN_SEED_FILE
+  ? (JSON.parse(readFileSync(process.env.CAIRN_SEED_FILE, "utf8")) as { packages: string[] }).packages
+  : (process.env.CAIRN_SEED_PACKAGES ?? "left-pad@1.3.0,is-number@7.0.0,ms@2.1.3,escape-html@1.0.3")
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s !== "");
 
 const rpcUrl = defaultRpcUrl();
 const chainId = await getChainId(rpcUrl);

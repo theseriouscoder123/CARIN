@@ -41,7 +41,8 @@
     "demo:stage": "node fixtures/demo/scripts/stage.mjs",
     "demo:rehearse": "node fixtures/demo/scripts/stage.mjs --rehearse",
     "demo:stage:base-sepolia": "node fixtures/demo/scripts/testnet-env.mjs node fixtures/demo/scripts/stage.mjs",
-    "demo:rehearse:base-sepolia": "node fixtures/demo/scripts/testnet-env.mjs node fixtures/demo/scripts/stage.mjs --rehearse"
+    "demo:rehearse:base-sepolia": "node fixtures/demo/scripts/testnet-env.mjs node fixtures/demo/scripts/stage.mjs --rehearse",
+    "seed:baseline:base-sepolia": "node fixtures/demo/scripts/testnet-env.mjs pnpm --filter @cairn/contracts seed"
   },
   "devDependencies": {
     "@cairn/cli": "workspace:*",

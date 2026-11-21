@@ -299,6 +299,18 @@ describe("integrity and rendering", () => {
     expect(text.includes("\u001b[")).toBe(false);
   });
 
+  it("reports coverage: attested on-chain vs fully verified", async () => {
+    const text = lock({
+      [`node_modules/${G}`]: { version: "1.0.0", resolved: "http://reg.test/g.tgz" },
+      "node_modules/other": { version: "1.0.0", resolved: "http://reg.test/o.tgz" },
+      "node_modules/third": { version: "1.0.0", resolved: "http://reg.test/t.tgz" }
+    });
+    const chain: RecordReader = { getRecord: async (id) => (id === ID ? record() : record({ packageId: id, exists: false })) };
+    const r = await verify(chain, serving(CLEAN), policy(), text);
+    expect(r.coverage).toEqual({ total: 3, attested: 1, verified: 1, percent: 33.3 });
+    expect(renderVerify(r, createStyle(false))).toContain("1 of 3 dependencies attested on-chain (33.3%)");
+  });
+
   it("the JSON report has the cairn.verify.v1 shape", async () => {
     const r = await verify(chainWith(record()), serving(CLEAN));
     expect(JSON.parse(JSON.stringify(r, (_k, v: unknown) => (typeof v === "bigint" ? String(v) : v)))).toMatchObject({

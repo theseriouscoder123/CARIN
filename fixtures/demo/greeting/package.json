@@ -1,0 +1,7 @@
+{
+  "name": "@cairn-demo/greeting",
+  "version": "1.0.0",
+  "description": "CAIRN demo fixture: a tiny, legible package",
+  "main": "index.js",
+  "license": "MIT"
+}

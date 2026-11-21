@@ -5,6 +5,9 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const rpcUrl = process.env.CAIRN_RPC_URL ?? "http://127.0.0.1:8545";
+// `--registry <url>` points all three at one npm registry (e.g. the local demo Verdaccio).
+const regFlag = process.argv.indexOf("--registry");
+const npmRegistry = regFlag !== -1 ? process.argv[regFlag + 1] : process.env.CAIRN_NPM_REGISTRY;
 const host = new URL(rpcUrl).hostname;
 if (!["127.0.0.1", "localhost", "::1"].includes(host)) {
   console.error(`attesters:up uses public dev keys and only runs against a local chain (got ${rpcUrl}).`);
@@ -24,6 +27,7 @@ const children = ATTESTERS.map((a) => {
     env: {
       ...process.env,
       CAIRN_RPC_URL: rpcUrl,
+      ...(npmRegistry ? { CAIRN_NPM_REGISTRY: npmRegistry } : {}),
       CAIRN_ATTESTER_LABEL: a.label,
       CAIRN_ATTESTER_KEY: a.key,
       PORT: String(a.port),

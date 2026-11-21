@@ -25,3 +25,8 @@ packages/contracts/deployments/31337.json
 
 # attester idempotency stores
 .attester-state/
+
+# demo build products
+fixtures/demo/*.tgz
+fixtures/demo/consumer/node_modules/
+fixtures/demo/consumer/package-lock.json

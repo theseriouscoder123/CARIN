@@ -1,0 +1,31 @@
+# Local npm registry for the tamper demo (docs/DEMO-RUNBOOK.md).
+# Real npm protocol, real tarballs. Only @cairn-demo/* lives here; everything else is
+# proxied from registry.npmjs.org so a consumer's normal dependencies still resolve.
+storage: ../../.cairn/verdaccio/storage
+auth:
+  htpasswd:
+    file: ../../.cairn/verdaccio/htpasswd
+    max_users: 5
+uplinks:
+  npmjs:
+    url: https://registry.npmjs.org/
+packages:
+  "@cairn-demo/*":
+    access: $all
+    publish: $authenticated
+    # unpublish is what lets the demo republish 1.0.0 with different bytes — the exact
+    # capability an account takeover hands an attacker on a registry that permits it.
+    unpublish: $authenticated
+  "**":
+    access: $all
+    publish: $authenticated
+    proxy: npmjs
+listen: 127.0.0.1:4873
+publish:
+  allow_offline: true
+web:
+  title: CAIRN demo registry
+log:
+  type: stdout
+  format: pretty
+  level: warn

@@ -109,6 +109,17 @@ docs/            Specifications
 Every attestation, corroboration and divergence the demo produces is a public transaction on
 Base Sepolia. Live on Base Sepolia since block 61748176.
 
+## Install the CLI
+
+A single self-contained file on [GitHub Releases](https://github.com/theseriouscoder123/CARIN/releases)
+(not on the npm registry), preconfigured for the public Base Sepolia deployment. Node.js 22+.
+
+```bash
+npx --yes https://github.com/theseriouscoder123/CARIN/releases/download/cli-v0.1.0/cairn-cli-0.1.0.tgz verify
+```
+
+Full guide: [cairn-two-ecru.vercel.app/docs](https://cairn-two-ecru.vercel.app/docs)
+
 ## Use it in CI
 
 One step in any GitHub Actions workflow, after checkout:

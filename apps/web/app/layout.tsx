@@ -16,6 +16,7 @@ const NAV = [
   { href: "/attesters", label: "Attesters" },
   { href: "/verify", label: "Verify" },
   { href: "/check", label: "Check a lockfile" },
+  { href: "/docs", label: "Docs" },
   { href: "/about", label: "How it works" }
 ];
 

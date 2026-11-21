@@ -8,3 +8,8 @@ export const RPC_LABEL = `${RPC_LIST[0] ?? RPC_URL}${RPC_LIST.length > 1 ? ` (+$
 export const REGISTRY_ADDR = process.env.NEXT_PUBLIC_REGISTRY_ADDR as `0x${string}` | undefined;
 export const EXPLORER_URL = process.env.NEXT_PUBLIC_EXPLORER_URL?.replace(/\/+$/, "");
 export const POLL_MS = 5000;
+
+/** The standalone CLI release (GitHub Release asset — not published to the npm registry). */
+export const CLI_VERSION = "0.1.0";
+export const REPO_URL = "https://github.com/theseriouscoder123/CARIN";
+export const CLI_TARBALL_URL = `${REPO_URL}/releases/download/cli-v${CLI_VERSION}/cairn-cli-${CLI_VERSION}.tgz`;

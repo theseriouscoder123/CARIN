@@ -249,6 +249,8 @@ try {
   for (const c of children) console.error(`----- ${c.name} (last 1500 chars)\n${c.log().slice(-1500)}`);
 } finally {
   for (const c of children) killTree(c.child);
-  rmSync(join(IT, "verdaccio", "demo-user.json"), { force: true });
+  // Leave no half-state behind: the registry's user database and the demo credentials
+  // must be removed together, or the next demo login fails with 401.
+  rmSync(join(IT, "verdaccio"), { recursive: true, force: true });
 }
 process.exit(failed ? 1 : 0);

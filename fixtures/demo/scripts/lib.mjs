@@ -91,8 +91,12 @@ export async function registryUp() {
  * Register (or log in) a local demo user through Verdaccio's real npm auth endpoint and
  * write an npmrc holding its token. The password is random and lives only in .cairn/.
  */
-export async function ensureDemoAuth() {
-  if (!(await registryUp())) fail(`Verdaccio is not running at ${REGISTRY} — start it with: pnpm registry:up`);
+export async function ensureDemoAuth({ exitOnFailure = true } = {}) {
+  const fail_ = (msg) => {
+    if (exitOnFailure) fail(msg);
+    throw new Error(msg);
+  };
+  if (!(await registryUp())) fail_(`Verdaccio is not running at ${REGISTRY} — start it with: pnpm registry:up`);
   mkdirSync(STATE, { recursive: true });
   const credsFile = join(STATE, "demo-user.json");
   const creds = existsSync(credsFile)
@@ -112,7 +116,7 @@ export async function ensureDemoAuth() {
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok || typeof body.token !== "string") {
-    fail(`could not authenticate the demo user (${res.status}): ${JSON.stringify(body)} — stop Verdaccio, pnpm registry:reset, pnpm registry:up`);
+    fail_(`could not authenticate the demo user (${res.status}): ${JSON.stringify(body)} — stop Verdaccio, pnpm registry:reset, pnpm registry:up`);
   }
   writeFileSync(credsFile, JSON.stringify({ ...creds, token: body.token }));
   writeNpmrc(body.token);

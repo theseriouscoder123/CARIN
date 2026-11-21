@@ -41,10 +41,10 @@ try {
 // 2. local registry
 if (await registryUp()) {
   try {
-    await ensureDemoAuth();
+    await ensureDemoAuth({ exitOnFailure: false });
     report(true, "demo registry (Verdaccio)", `${REGISTRY} · demo user authenticated`);
-  } catch {
-    report(false, "demo registry auth", REGISTRY, "stop Verdaccio, pnpm registry:reset, pnpm registry:up");
+  } catch (err) {
+    report(false, "demo registry auth", err instanceof Error ? err.message.slice(0, 80) : REGISTRY, "stop Verdaccio, pnpm registry:reset, pnpm registry:up");
   }
 } else {
   report(false, "demo registry (Verdaccio)", `${REGISTRY} unreachable`, "pnpm registry:up");
@@ -55,7 +55,7 @@ for (const port of attesterPorts) {
   try {
     const { body: h } = await getJson(`http://127.0.0.1:${port}/health`, 3000);
     const registered = client ? await client.isAttester(h.address) : false;
-    const lag = Number(head) - h.lastProcessedBlock;
+    const lag = Math.max(0, Number(head) - h.lastProcessedBlock);
     const ok = registered && h.chainReachable && h.registryReachable && lag < 60;
     report(
       ok,

@@ -11,7 +11,13 @@ const origin = (url: string | undefined, fallback: string) => {
 // The browser may talk to exactly two backends: the indexer (lists, history) and the chain
 // RPC (independent verification). The CSP names them and nothing else.
 const indexer = origin(process.env.NEXT_PUBLIC_INDEXER_URL, "http://127.0.0.1:4100");
-const rpc = origin(process.env.NEXT_PUBLIC_RPC_URL, "http://127.0.0.1:8545");
+// NEXT_PUBLIC_RPC_URL may be a comma-separated failover list: allow each endpoint.
+const rpc = (process.env.NEXT_PUBLIC_RPC_URL ?? "http://127.0.0.1:8545")
+  .split(",")
+  .map((u) => u.trim())
+  .filter((u) => u !== "")
+  .map((u) => origin(u, "http://127.0.0.1:8545"))
+  .join(" ");
 const dev = process.env.NODE_ENV !== "production";
 
 const csp = [

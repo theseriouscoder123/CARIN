@@ -21,6 +21,10 @@
     "./identity": {
       "types": "./dist/identity.d.ts",
       "default": "./dist/identity.js"
+    },
+    "./rpc": {
+      "types": "./dist/rpc.d.ts",
+      "default": "./dist/rpc.js"
     }
   },
   "files": [

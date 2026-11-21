@@ -14,7 +14,7 @@ if (env.CONTRACT) shared.push("--contract", env.CONTRACT);
 else {
   // The deployment files shipped with this action; the CLI checks the chain id matches.
   const chainId = JSON.parse(
-    (await fetch(env.RPC_URL, {
+    (await fetch(env.RPC_URL.split(",")[0].trim(), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_chainId", params: [] })

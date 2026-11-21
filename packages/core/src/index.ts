@@ -9,5 +9,6 @@ export * from "./eip712.js";
 export * from "./abi.js";
 export * from "./deployment.js";
 export * from "./chain.js";
+export * from "./rpc.js";
 export * from "./npm.js";
 export * from "./publication.js";

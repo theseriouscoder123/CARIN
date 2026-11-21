@@ -16,8 +16,9 @@ services:
         value: 22.12.0
       - key: HOST
         value: 0.0.0.0
+      # Primary + failover endpoints, tried in order.
       - key: CAIRN_RPC_URL
-        value: https://sepolia.base.org
+        value: https://sepolia.base.org,https://base-sepolia-rpc.publicnode.com,https://base-sepolia.gateway.tenderly.co
       # The registry address is discovered from packages/contracts/deployments/84532.json.
       - key: CORS_ORIGINS
         value: https://cairn-two-ecru.vercel.app

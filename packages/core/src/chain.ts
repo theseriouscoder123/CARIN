@@ -4,7 +4,6 @@ import {
   createPublicClient,
   createWalletClient,
   defineChain,
-  http,
   keccak256,
   parseAbiItem,
   stringToBytes,
@@ -17,6 +16,7 @@ import {
 } from "viem";
 import { attestationRegistryAbi, quorumPolicyAbi } from "./abi.js";
 import { ChainUnavailableError, TransactionError } from "./errors.js";
+import { parseRpcUrls, primaryRpc, rpcTransport } from "./rpc.js";
 
 /** On-chain view of one packageId, read at a single block for consistency. */
 export interface OnChainRecord {
@@ -100,8 +100,8 @@ async function wrapRead<T>(what: string, fn: () => Promise<T>): Promise<T> {
 
 /** Probe an RPC endpoint for its chain id. Throws ChainUnavailableError if unreachable. */
 export async function getChainId(rpcUrl: string): Promise<number> {
-  const probe = createPublicClient({ transport: http(rpcUrl, { retryCount: 1, timeout: 10_000 }) });
-  return wrapRead(`chain id from ${rpcUrl}`, () => probe.getChainId());
+  const probe = createPublicClient({ transport: rpcTransport(rpcUrl, { retryCount: 1, timeout: 10_000 }) });
+  return wrapRead(`chain id from ${primaryRpc(rpcUrl)}`, () => probe.getChainId());
 }
 
 /**
@@ -118,7 +118,7 @@ export class CairnClient {
     this.chain = chain;
     this.rpcUrl = rpcUrl;
     this.registry = registry;
-    this.public = createPublicClient({ chain, transport: http(rpcUrl, { retryCount: 2, timeout: 20_000 }) });
+    this.public = createPublicClient({ chain, transport: rpcTransport(rpcUrl, { retryCount: 2, timeout: 20_000 }) });
   }
 
   static async connect(config: CairnClientConfig): Promise<CairnClient> {
@@ -127,7 +127,7 @@ export class CairnClient {
       id: chainId,
       name: `cairn-${chainId}`,
       nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-      rpcUrls: { default: { http: [config.rpcUrl] } }
+      rpcUrls: { default: { http: parseRpcUrls(config.rpcUrl) } }
     });
     const client = new CairnClient(chain, config.rpcUrl, config.registryAddress);
     const code = await wrapRead("registry bytecode", () =>
@@ -310,7 +310,7 @@ export class CairnClient {
   }
 
   private wallet(account: LocalAccount) {
-    return createWalletClient({ account, chain: this.chain, transport: http(this.rpcUrl) });
+    return createWalletClient({ account, chain: this.chain, transport: rpcTransport(this.rpcUrl) });
   }
 
   /** Simulate first so a revert surfaces as a named custom error, then send and wait. */

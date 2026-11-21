@@ -13,8 +13,8 @@ inputs:
     description: "Path to the npm package-lock.json (v2/v3) to verify."
     default: package-lock.json
   rpc-url:
-    description: "Chain RPC endpoint. Defaults to Base Sepolia, where CAIRN is deployed."
-    default: https://sepolia.base.org
+    description: "Chain RPC endpoint, or a comma-separated failover list. Defaults to Base Sepolia, where CAIRN is deployed."
+    default: https://sepolia.base.org,https://base-sepolia-rpc.publicnode.com,https://base-sepolia.gateway.tenderly.co
   contract:
     description: "AttestationRegistry address. Empty means the deployment file shipped with this action for the RPC's chain."
     default: ""

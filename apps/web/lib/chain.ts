@@ -1,10 +1,12 @@
 "use client";
 // Direct contract reads from the browser. The indexer is a cache; this is the authority.
 import { attestationRegistryAbi, quorumPolicyAbi } from "@cairn/core/abi";
-import { createPublicClient, http, type Address, type Hex } from "viem";
+import { rpcTransport } from "@cairn/core/rpc";
+import { createPublicClient, type Address, type Hex } from "viem";
 import { RPC_URL } from "./config";
 
-const client = createPublicClient({ transport: http(RPC_URL, { retryCount: 1, timeout: 8000 }) });
+// One URL or a comma-separated failover list (NEXT_PUBLIC_RPC_URL).
+const client = createPublicClient({ transport: rpcTransport(RPC_URL, { retryCount: 1, timeout: 8000 }) });
 
 export interface ChainRecord {
   exists: boolean;

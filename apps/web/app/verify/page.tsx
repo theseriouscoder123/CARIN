@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Card, Digest, StatusBadge } from "@/components/ui";
 import { chainStatus, readRecord, type ChainRecord } from "@/lib/chain";
-import { INDEXER_URL, REGISTRY_ADDR, RPC_URL } from "@/lib/config";
+import { INDEXER_URL, REGISTRY_ADDR, RPC_LABEL } from "@/lib/config";
 import { short } from "@/lib/format";
 import type { Health, Hex } from "@/lib/types";
 
@@ -43,7 +43,7 @@ export default function VerifyPage() {
         finish("done", `${registry} (reported by the indexer — set NEXT_PUBLIC_REGISTRY_ADDR to pin it)`);
       } else finish("done", `${registry} (configured)`);
 
-      push({ label: `reading the record, quorum and divergences straight from the chain at ${RPC_URL}`, state: "running" });
+      push({ label: `reading the record, quorum and divergences straight from the chain at ${RPC_LABEL}`, state: "running" });
       const record = await readRecord(registry, id);
       finish("done", `read at block ${record.blockNumber}`);
       setResult({ id, record });

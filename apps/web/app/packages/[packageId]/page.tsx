@@ -4,7 +4,7 @@ import { useMemo, type ReactNode } from "react";
 import { Card, Digest, ErrorBox, Skeleton, StatusBadge, TxRef } from "@/components/ui";
 import { statusDetail } from "@/components/lists";
 import { chainStatus, readRecord, type ChainRecord } from "@/lib/chain";
-import { REGISTRY_ADDR, RPC_URL } from "@/lib/config";
+import { REGISTRY_ADDR, RPC_LABEL } from "@/lib/config";
 import { ago, same, short } from "@/lib/format";
 import type { AttestersResponse, Health, Hex, PackageDetail, TimelineEvent } from "@/lib/types";
 import { indexer, usePoll } from "@/lib/use-poll";
@@ -99,7 +99,7 @@ export default function PackagePage() {
         title="Record — indexer vs chain"
         right={
           <span className="text-sm text-neutral-400">
-            chain read from your browser via <span className="font-mono">{RPC_URL}</span>
+            chain read from your browser via <span className="font-mono">{RPC_LABEL}</span>
             {c ? ` at block ${c.blockNumber}` : ""}
           </span>
         }

@@ -10,33 +10,34 @@ The live demo is the single highest-weighted thing in Phase 2 (Functional MVP & 
 **Waiting room, before the name is called:**
 
 ```bash
-pnpm registry:up                       # terminal A (leave running)
-pnpm attesters:base-sepolia            # terminal B (leave running, visible on screen)
-pnpm demo:preflight:base-sepolia       # must print READY — fix anything red now
-pnpm demo:release:base-sepolia         # picks the next free version, e.g. 1.0.3
+pnpm registry:up                       # terminal A — start this FIRST
+pnpm attesters:base-sepolia            # terminal B — leave visible
+pnpm demo:preflight:base-sepolia       # must print READY; fix anything red now
+pnpm demo:stage:base-sepolia           # terminal C — prepares a fresh release, then waits
 ```
 
-Open https://cairn-two-ecru.vercel.app (wakes the Render indexer) and keep it in a tab.
+The stage driver prints `Open on the projector now: …/live?spec=@cairn-demo/greeting@1.0.N`.
+Open that link full-screen **before** pressing Enter: it reads the chain from the browser and
+shows WAITING → PENDING → each attester → VERIFIED → DIVERGENT as it happens.
 
-| Time | Beat | Do | Say |
+| Time | Enter → | What the audience sees | Say |
 |---|---|---|---|
-| 0:00 | Attest | `pnpm cairn:base-sepolia publish fixtures/demo/cairn-demo-greeting.tgz` | "The maintainer signs a digest of the release and anchors it on Base Sepolia." |
-| 0:40 | Corroborate | Switch to the dashboard: the live feed shows attester-a/b/c corroborating within seconds | "Three independent processes re-downloaded it and recomputed the digest themselves." |
-| 1:20 | Gate passes | `pnpm demo:verify:base-sepolia` → `PASSED`, exit 0 | "A clean CI run. Build proceeds." |
-| 1:50 | Tamper | `pnpm demo:tamper` | "Same version string. Different bytes. This is an account takeover." |
-| 2:20 | Detect | `pnpm demo:recheck:base-sepolia` → three `DIVERGENCE reported on-chain`; dashboard banner turns red | "Recorded on a public chain, attributed, permanent." |
-| 3:00 | Block | fresh resolve, then `pnpm demo:verify:base-sepolia` → `DIVERGENT`, delta names `scripts/postinstall.js (added)`, exit 1 | "npm is satisfied. CAIRN is not." |
-| 3:40 | Adoption | GitHub → Actions → *demo: tampered dependency* — green clean job, red tampered job, verdict table in the summary | "One line in any repo's CI: `uses: theseriouscoder123/CARIN@v1`." |
-| 4:20 | Close | Click a tx link to BaseScan | "Anyone can verify every step of what you just saw." |
+| 0:00 | 1 Attest | terminal: digest, signature, tx hash | "The maintainer signs a digest of the release and anchors it on Base Sepolia." |
+| 0:30 | 2 Corroborate | `/live`: three tiles turn green within ~7 s, **VERIFIED** | "Three independent attesters re-downloaded it and recomputed the digest themselves." |
+| 1:10 | 3 Gate passes | terminal: `PASSED`, exit 0, coverage line | "A clean CI run. Build proceeds." |
+| 1:35 | 4 Tamper | terminal: same version republished | "Same version string. Different bytes. Account takeover." |
+| 2:00 | 5 Detect | `/live`: tiles turn red, page **DIVERGENT** | "Recorded on a public chain — attributed and permanent." |
+| 2:40 | 6 Block | terminal: `DIVERGENT`, `scripts/postinstall.js (added)`, exit 1 | "npm is satisfied. CAIRN is not." |
+| 3:20 | 7 Proof | links: BaseScan, GitHub Actions red run | "One line in any repo's CI. Anyone can verify every step." |
 
-Fresh resolve for the block beat (a new developer's install):
+Rehearse unattended any time with `pnpm demo:rehearse:base-sepolia` (about a minute; prints
+REHEARSAL GREEN). Every run uses a new version, because the chain is append-only.
 
-```bash
-cd fixtures/demo/consumer && del package-lock.json && npm install --package-lock-only && cd ../../..
-```
-
-Rehearse as often as you like: every `demo:release` picks a new version, because the chain
-is append-only. If anything fails mid-demo, the fallbacks in §4 apply.
+**Operator notes**
+- If you change a `NEXT_PUBLIC_*` value on Vercel, deploy with `npx vercel deploy --prod --force`
+  — a cached build keeps the old value (and the old CSP).
+- Gas: `pnpm fund:base-sepolia` tops up the publisher and attesters from the deployer.
+- Fallback video script: `docs/FALLBACK-VIDEO.md`. Fallbacks for failures: §4.
 
 ---
 
@@ -353,3 +354,58 @@ the cut list from the proposal onward.
 **"Is this really built in 24 hours?"**
 Repository is public, commit history is in the window, and everything you just saw is
 running live — no recorded demo, no mock data. Happy to open any file.
+
+### Added after deployment — answers grounded in what is live
+
+**"Is this actually deployed, or a localhost demo?"**
+The contracts are on Base Sepolia (`0x6261…77ec`), the dashboard is on Vercel, the indexer on
+Render with MongoDB. Every attestation, corroboration and divergence you just saw is a public
+transaction — click any link to BaseScan. Only the demo registry and the attester processes run
+on this laptop, because a tamper demo needs a registry that allows republishing.
+
+**"Who runs your three attesters?"**
+We do, in this MVP — three separate processes with three keys, on one machine. That is the
+honest limit, and it is in our threat model. What it demonstrates is the protocol: each
+attester independently re-fetches and re-hashes, and the contract — not the attester — decides
+corroboration versus divergence. Independence comes from running them under unrelated operators;
+the roadmap adds staking and slashing so they have something to lose.
+
+**"What stops me attesting someone else's package with bad bytes?"**
+Three things on-chain: the EIP-712 signature must recover to the named publisher, the
+`packageId` is recomputed from the signed strings, and the first attestation of a name pins its
+publisher key — a different key cannot attest later versions. A squatter on a brand-new name
+gets divergence reports from every honest attester the moment the real bytes are re-fetched,
+so it never reaches quorum.
+
+**"What if the npm account itself is hijacked?"**
+Without the maintainer's CAIRN key the attacker cannot attest a new version, so it shows up
+UNATTESTED. Republishing an existing version is the divergence you just watched. Either way the
+gate sees it — before any CVE exists.
+
+**"Does this scale to real projects?"**
+We verified a real 437-dependency project (express, webpack, eslint, jest) against the public
+chain in about 11 seconds cold, 6 seconds warm — the chain reads are batched through Multicall3,
+a handful of requests for the whole tree. We also attested an 86-release baseline from that
+project's own tree, so you can see real coverage, not just a toy.
+
+**"How does anyone adopt this?"**
+One line in CI: `uses: theseriouscoder123/CARIN@v1`. No migration, no new registry, no change
+to how packages are published — the Action reads your existing `package-lock.json`.
+
+**"What does an attestation cost?"**
+Measured from Base Sepolia receipts: 135,501 gas to attest a release and 65,502 per
+corroboration — about 330k gas for a release with three corroborations, roughly 0.000002 ETH at
+today's Base Sepolia prices. At comparable Base mainnet gas prices that is around a cent per
+release, paid once, not per install.
+
+**"What if the RPC lies or goes down?"**
+Down: every component fails over across three public endpoints, and if none answers, `verify`
+fails closed — it never passes on missing evidence. Lies: point CAIRN at your own node; the
+dashboard already re-reads the contract in your browser and flags any field where the indexer
+disagrees with the chain.
+
+**"Where is the AI / machine learning?"**
+Deliberately absent from the decision. CAIRN's claim is mechanical: same version, different
+bytes. A classifier guessing at maliciousness would reintroduce exactly the false positives and
+trust we removed. (Only if asked: an AI that *explains* a detected diff in plain language would
+fit; it would never decide.)

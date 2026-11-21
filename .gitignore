@@ -19,3 +19,6 @@ packages/contracts/ignition/deployments/chain-31337/
 .cairn/
 *.log
 .DS_Store
+
+# local chain deployments are regenerated on every Hardhat restart
+packages/contracts/deployments/31337.json

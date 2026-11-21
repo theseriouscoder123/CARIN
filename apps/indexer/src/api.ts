@@ -212,6 +212,41 @@ export function createApi(deps: ApiDeps): Express {
   );
 
   v1.get(
+    "/events",
+    route(async (req, res) => {
+      const { limit } = parse(FeedQuery, req.query);
+      const events = await deps.store.eventsOfTypes(["AttestationSubmitted", "AttesterCorroborated", "DivergenceReported"], {
+        limit,
+        newestFirst: true
+      });
+      const names = new Map<string, { name: string; version: string } | null>();
+      const items = [];
+      for (const e of events) {
+        const id = e.packageId;
+        if (id && !names.has(id)) {
+          const doc = await deps.store.getAttestation(id);
+          names.set(id, doc ? { name: doc.name, version: doc.version } : null);
+        }
+        const pkg = id ? names.get(id) : null;
+        items.push({
+          id: e.id,
+          type: e.type,
+          packageId: id,
+          name: pkg?.name ?? null,
+          version: pkg?.version ?? null,
+          actor: e.actor,
+          actorLabel: e.actor ? (deps.attesterLabels?.[e.actor.toLowerCase()] ?? null) : null,
+          data: e.data,
+          blockNumber: e.blockNumber,
+          txHash: e.txHash,
+          timestamp: e.timestamp
+        });
+      }
+      res.json({ items, asOfBlock: asOf() });
+    })
+  );
+
+  v1.get(
     "/divergences",
     route(async (req, res) => {
       const { limit } = parse(FeedQuery, req.query);

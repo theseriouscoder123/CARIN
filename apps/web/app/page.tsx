@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AttesterCards, DivergenceAlert, DivergenceFeed, RecentPackages, StatCards } from "@/components/lists";
+import { ActivityFeed, AttesterCards, DivergenceAlert, DivergenceFeed, RecentPackages, StatCards } from "@/components/lists";
 import { Card } from "@/components/ui";
 
 export default function OverviewPage() {
@@ -18,6 +18,7 @@ export default function OverviewPage() {
         </Link>
       </div>
       <StatCards />
+      <ActivityFeed />
       <Card title="Attesters">
         <AttesterCards />
       </Card>

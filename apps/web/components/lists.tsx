@@ -70,7 +70,7 @@ export function DivergenceAlert() {
         <div role="alert" className="rounded-xl border-2 border-red-500 bg-red-950/70 p-5 shadow-[0_0_40px_-10px] shadow-red-600">
           <p className="text-2xl font-bold text-red-100">✗ Divergence detected</p>
           <ul className="mt-3 space-y-2">
-            {[...pkgs.values()].map((i) => (
+            {[...pkgs.values()].slice(0, 3).map((i) => (
               <li key={i.packageId} className="text-lg text-red-100">
                 <Link href={`/packages/${i.packageId}`} className="font-semibold underline decoration-red-400 underline-offset-4">
                   {i.name}@{i.version}
@@ -80,6 +80,11 @@ export function DivergenceAlert() {
               </li>
             ))}
           </ul>
+          {pkgs.size > 3 ? (
+            <p className="mt-2 text-sm text-red-200/80">
+              +{pkgs.size - 3} earlier divergent release{pkgs.size - 3 === 1 ? "" : "s"} — the record is append-only, so every one stays visible.
+            </p>
+          ) : null}
         </div>
       ) : null}
       {toast ? (
@@ -230,6 +235,106 @@ export function DivergenceFeed() {
               </li>
             ))}
           </ul>
+        )}
+      </States>
+    </Card>
+  );
+}
+
+interface ActivityItem {
+  id: string;
+  type: "AttestationSubmitted" | "AttesterCorroborated" | "DivergenceReported";
+  packageId?: `0x${string}`;
+  name: string | null;
+  version: string | null;
+  actor?: `0x${string}`;
+  actorLabel: string | null;
+  data: Record<string, string | number | boolean>;
+  blockNumber: number;
+  txHash: `0x${string}`;
+  timestamp: string;
+}
+
+/**
+ * Live stream of on-chain events, newest first. New rows flash in, so an audience can
+ * watch attesters corroborate — and then catch the republication — as it happens.
+ */
+export function ActivityFeed({ limit = 12 }: { limit?: number }) {
+  const feed = usePoll<{ items: ActivityItem[] }>(() => indexer(`/events?limit=${limit}`), `events-${limit}`, 3000);
+  const seen = useRef<Set<string> | null>(null);
+  const [fresh, setFresh] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!feed.data) return;
+    const ids = feed.data.items.map((i) => i.id);
+    if (seen.current !== null) {
+      const added = ids.filter((id) => !seen.current!.has(id));
+      if (added.length > 0) {
+        setFresh(new Set(added));
+        setTimeout(() => setFresh(new Set()), 4000);
+      }
+    }
+    seen.current = new Set(ids);
+  }, [feed.data]);
+
+  const row = (e: ActivityItem) => {
+    const who = e.actorLabel ?? short(e.actor);
+    const pkg = e.name ? `${e.name}@${e.version}` : short(e.packageId);
+    if (e.type === "AttestationSubmitted")
+      return { icon: "◆", tone: "text-sky-300", text: <>Attestation submitted for <b>{pkg}</b></> };
+    if (e.type === "AttesterCorroborated")
+      return {
+        icon: "✓",
+        tone: "text-emerald-300",
+        text: (
+          <>
+            <b>{who}</b> re-fetched <b>{pkg}</b> and corroborated · {String(e.data.corroborations)} total
+            {e.data.quorumReached === true ? " · quorum reached" : ""}
+          </>
+        )
+      };
+    return {
+      icon: "✗",
+      tone: "text-red-300",
+      text: (
+        <>
+          <b>{who}</b> observed different bytes for <b>{pkg}</b> — divergence recorded
+        </>
+      )
+    };
+  };
+
+  return (
+    <Card title="Live on-chain activity" right={<span className="text-sm text-neutral-400">● updating every 3s</span>}>
+      <States state={feed} what="activity" isEmpty={(d) => d.items.length === 0} empty="No on-chain activity yet." rows={4}>
+        {(d) => (
+          <ol className="space-y-2">
+            {d.items.map((e) => {
+              const r = row(e);
+              return (
+                <li
+                  key={e.id}
+                  className={`flex flex-wrap items-baseline gap-x-3 rounded-md px-3 py-2 transition-colors duration-1000 ${
+                    fresh.has(e.id) ? (e.type === "DivergenceReported" ? "bg-red-900/60" : "bg-emerald-900/40") : "bg-neutral-900/40"
+                  }`}
+                >
+                  <span className={`text-lg ${r.tone}`} aria-hidden>
+                    {r.icon}
+                  </span>
+                  {e.packageId ? (
+                    <Link href={`/packages/${e.packageId}`} className="text-lg hover:underline">
+                      {r.text}
+                    </Link>
+                  ) : (
+                    <span className="text-lg">{r.text}</span>
+                  )}
+                  <span className="ml-auto text-sm text-neutral-400">
+                    block {e.blockNumber} · {ago(e.timestamp)} · <TxRef hash={e.txHash} />
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
         )}
       </States>
     </Card>

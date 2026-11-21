@@ -253,6 +253,13 @@ describe("API", () => {
     expect(body.healthConfigured).toBe(true);
   });
 
+  it("/events is a newest-first activity feed with package names", async () => {
+    const get = await api();
+    const body = await json(await get("/events?limit=3"));
+    expect(body.items.map((e: { type: string }) => e.type)).toEqual(["DivergenceReported", "AttesterCorroborated", "AttesterCorroborated"]);
+    expect(body.items[0]).toMatchObject({ name: "@cairn-demo/greeting", version: "1.0.0" });
+  });
+
   it("/lookup resolves a name to its packageId and indexed status", async () => {
     const get = await api();
     expect(await json(await get("/lookup?name=left-pad&version=1.3.0"))).toMatchObject({ packageId: PKG2, indexed: true, status: "VERIFIED" });

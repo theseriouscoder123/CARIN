@@ -152,8 +152,8 @@ workspace package; it will corrupt the lockfile.
 
 | Layer | Choice | Notes |
 |-------|--------|-------|
-| Runtime | Node.js 20 LTS | `.nvmrc` pinned |
-| Package manager | pnpm 9 + workspaces | `packageManager` field in root package.json |
+| Runtime | Node.js 22 (>=22.10) | `.nvmrc` pinned; Hardhat 3 requires >=22.10 |
+| Package manager | pnpm 12 + workspaces | `packageManager` field pins the exact version; run `corepack enable` |
 | Build orchestration | Turborepo | caching on; `turbo.json` defines the graph |
 | Language | TypeScript 5.x, `strict: true` | ESM throughout (`"type": "module"`) |
 | Contracts | Solidity 0.8.26, Hardhat (TS) | OpenZeppelin for `ECDSA`, `EIP712` |

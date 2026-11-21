@@ -15,6 +15,10 @@ This is the part judges will probe. State it precisely.
 
 - That the registry is honest. A registry serving different bytes than were attested is
   precisely what CAIRN detects.
+- That the npm account is uncompromised. Each package name is pinned to the CAIRN key
+  that first attested it (`AttestationRegistry` publisher pin). An attacker who hijacks
+  the npm account but not the maintainer's offline CAIRN key cannot produce an attested
+  release: their new version is UNATTESTED, and republishing an old one is DIVERGENT.
 - That the maintainer's key is uncompromised. A compromised maintainer can publish a new
   version, but cannot silently alter an already-attested one, because the record is
   append-only and attesters observe the live artifact.
@@ -33,6 +37,7 @@ This is the part judges will probe. State it precisely.
 | First-publication trust-on-first-use | Nothing to compare the first release against | Reproducible-build proofs tie artifact to source |
 | npm only | Adapter written for one ecosystem | Adapter interface already isolates this (§4.3) |
 | Attesters fetch from the same registry | A registry could serve attesters different bytes than users | Geographically and network-diverse attesters; client-side digest reporting |
+| Package names are claimed trust-on-first-use | The first attestation of a name pins its publisher key; whoever attests a brand-new name first owns it on CAIRN | Bind the pin to registry identity (npm provenance / OIDC trusted publishing) and add signed key rotation |
 
 That last row is the sharpest question available to a hostile judge. The honest answer:
 CAIRN raises the cost of a targeted attack from "compromise one account" to "serve

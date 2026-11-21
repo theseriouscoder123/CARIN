@@ -25,16 +25,16 @@ not belong.
 ## 2. Toolchain — all three machines
 
 ```bash
-node --version      # 20.x LTS
-pnpm --version      # 9.x
+node --version      # 22.x (>=22.10)
+pnpm --version      # 12.x (via corepack)
 git --version
 docker --version    # for Verdaccio and Mongo
 ```
 
 Install and verify:
 
-- Node 20 LTS via nvm/fnm, with `.nvmrc` discipline agreed
-- pnpm 9 (`corepack enable`)
+- Node 22 via nvm/fnm, with `.nvmrc` discipline agreed
+- pnpm 12 (`corepack enable`; the root `packageManager` field pins the version)
 - Docker Desktop (or Colima) running
 - VS Code with Solidity, ESLint, Prettier, Tailwind extensions
 - GitHub CLI authenticated

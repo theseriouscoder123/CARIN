@@ -15,7 +15,9 @@ prevents at that layer.
 The demo runs against **Verdaccio**, a local npm registry, configured to allow overwriting
 a published version. This is honest: the point is to show CAIRN detecting byte-level
 divergence for a version string, and Verdaccio is a real npm registry implementation
-serving real tarballs over the real protocol. Say so on stage in one sentence — framing it
+serving real tarballs over the real protocol. Verdaccio has no "overwrite" switch: the demo
+**unpublishes** 1.0.0 and publishes different bytes under the same version, exactly what an
+account takeover can do on any registry that permits unpublish. Say so on stage in one sentence — framing it
 as a controlled environment is stronger than being asked and sounding evasive.
 
 If anyone asks why this matters in the real world when npm forbids republish: registries
@@ -30,28 +32,27 @@ declines to trust.
 
 ```bash
 # terminal 1 — chain
-pnpm --filter @cairn/contracts hardhat node
+pnpm chain
 
-# terminal 2 — deploy + seed
-pnpm --filter @cairn/contracts deploy:local
-pnpm --filter @cairn/contracts seed
+# terminal 2 — registry (Verdaccio as a pinned devDependency; no Docker needed)
+pnpm registry:up                 # :4873, state in .cairn/verdaccio (pnpm registry:reset wipes it)
 
-# terminal 3 — registry
-pnpm registry:up                 # Verdaccio :4873, publish.allow_offline + overwrite
+# terminal 3 — deploy + seed, then the attesters (pointed at the local registry)
+pnpm deploy:local && pnpm seed:local
+pnpm attesters:demo              # three OS processes, three keys, ports 4001-4003
 
-# terminal 4 — attesters
-pnpm attesters:up                # three processes, three keys, ports 4001-4003
-
-# terminal 5 — indexer + dashboard
+# terminal 4 — indexer + dashboard
 pnpm dev
 ```
 
-Verdaccio config must permit republishing the same version. Verify this during setup, not
-on stage.
+**Rehearse the whole path unattended first:** with the stack *stopped*, run
+`pnpm test:integration`. It cold-starts everything, runs every act below with assertions,
+and tears down in about a minute. Green means the demo works on this machine today.
 
 ### Demo fixture
 
-`fixtures/demo/greeting/` — a tiny, legible package. Keep it small enough that the file
+`fixtures/demo/greeting/` — a tiny, legible package. `pnpm demo:release` packs it and
+publishes it to the local registry, then resolves the consumer's lockfile against it. Keep it small enough that the file
 list fits on one screen.
 
 ```
@@ -60,10 +61,11 @@ index.js              module.exports = (n) => `Hello, ${n}!`
 README.md
 ```
 
-The tampered variant adds one file:
+The tampered variant (`pnpm demo:tamper`) adds one file and the hook that runs it:
 
 ```
-scripts/postinstall.js    // exfiltration stand-in — a console.log, clearly labelled
+scripts/postinstall.js    // SIMULATED PAYLOAD — demo fixture, performs no action
+package.json              "scripts": { "postinstall": "node scripts/postinstall.js" }
 ```
 
 Make the malicious file's content obviously a stand-in, not functional malware. A judge
@@ -79,15 +81,15 @@ Total: 4–5 minutes. Practise until it runs without thinking.
 ### Act 1 — a clean release (60s)
 
 ```bash
-cairn publish fixtures/demo/greeting-1.0.0.tgz
+pnpm demo:release                                                # the maintainer's normal npm publish
+npx cairn publish fixtures/demo/cairn-demo-greeting-1.0.0.tgz    # needs CAIRN_PRIVATE_KEY
 ```
 
 Show the terminal: digest computed, attestation submitted, transaction hash.
 
 Switch to the dashboard. The package appears, status **PENDING**, `0 / 3` corroborations.
-
-Within seconds the attester cards tick over: `1/3`, `2/3`, `3/3`. Status flips to
-**VERIFIED**, green.
+Within seconds the attester terminal and cards tick over: `1/3`, `2/3`, `3/3`. Status flips
+to **VERIFIED**.
 
 > Say: "Three independent processes just re-downloaded that package from the registry,
 > recomputed the digest themselves, and signed on-chain that it matches. I didn't tell them
@@ -96,69 +98,75 @@ Within seconds the attester cards tick over: `1/3`, `2/3`, `3/3`. Status flips t
 ### Act 2 — the gate passes (45s)
 
 ```bash
-cd fixtures/demo/consumer
-cairn verify
+npx cairn verify --lockfile fixtures/demo/consumer/package-lock.json
 ```
 
-```
-  ✓ 1 verified
-  PASS
-```
+`✓ 3 verified · PASSED`, exit 0.
 
 > Say: "This is what a clean CI run looks like. Exit code zero, build proceeds."
 
 ### Act 3 — the tamper (60s)
 
 ```bash
-pnpm demo:tamper        # rebuilds 1.0.0 with scripts/postinstall.js, republishes
+pnpm demo:tamper        # unpublish 1.0.0, republish 1.0.0 with scripts/postinstall.js
 ```
 
-Show that the version string is **unchanged**: still `1.0.0`. The lockfile does not change.
-Nothing a developer would notice has changed.
+The version string is **unchanged**: still `1.0.0`. Nothing a developer would notice.
 
-> Say: "Same version. Same lockfile entry. Every tool that pins by version string is
-> satisfied. The bytes are different."
+> Say: "Same version. Every tool that pins by version string is satisfied. The bytes are
+> different."
 
 ### Act 4 — detection (60s)
 
 ```bash
-curl -X POST localhost:4001/admin/recheck -d '{"packageId":"0x…"}'
+pnpm demo:recheck       # POST /admin/recheck on all three attesters, right now
 ```
 
-(Or wait for the timer if it is short enough — but do not gamble on stage. Use the trigger.)
+All three print `✗ DIVERGENCE reported on-chain` with a transaction hash, and all three
+observed the **same** new digest. Dashboard goes red. `npx cairn status
+@cairn-demo/greeting@1.0.0` shows `quorum: blocked by divergence` and three divergence rows.
 
-Dashboard goes red. Divergence banner at the top. The package detail page shows expected
-vs observed digest, and which attester reported it.
-
-> Say: "An attester re-checked the published artifact and found different bytes than were
-> attested. That divergence is now recorded on-chain, permanently, attributed to the
-> attester that found it."
+> Say: "Every attester re-checked the published artifact and found different bytes than
+> were attested. That is now recorded on-chain, permanently, attributed to each attester."
 
 ### Act 5 — the block (60s)
 
+Two beats. First, the existing project:
+
 ```bash
-cairn verify
+npx cairn verify --lockfile fixtures/demo/consumer/package-lock.json
+```
+
+`CONTESTED` · `BLOCKED`, exit 1 — the attesters' on-chain evidence alone blocks it.
+
+Then the real exposure. **Be precise here; a sharp judge will check.** An *existing*
+lockfile pins the old `integrity` hash, so `npm ci` itself would reject the republished
+tarball. The danger is every *fresh* resolution — a new developer, a lockfile refresh, a
+dependency-bot PR — which records the tampered hash, after which npm is perfectly satisfied:
+
+```bash
+cd fixtures/demo/consumer
+del package-lock.json            # rm on macOS/Linux — "a new developer clones the repo"
+npm install --package-lock-only  # npm happily records the tampered integrity
+cd ../../..
+npx cairn verify --lockfile fixtures/demo/consumer/package-lock.json
 ```
 
 ```
-  ✗  @cairn-demo/greeting@1.0.0                            DIVERGENT
-     attested   0x7f3a…c21e
-     observed   0xa014…77d9
-     delta      scripts/postinstall.js  (added)
+  ✗  @cairn-demo/greeting@1.0.0                          DIVERGENT
+     attested   0x3e9e…46ec   by 0x7099…79C8  ·  3/3 attesters · quorum 2
+     observed   0x28a1…d241
+     delta      package.json  (content changed)
+                scripts/postinstall.js  (added)
 
   BLOCKED — 1 divergent dependency
 ```
 
-```bash
-echo $?        # 1
-```
+> Say: "npm's integrity check only compares against whatever the lockfile recorded when it
+> was resolved. CAIRN compares against what the maintainer attested and independent parties
+> confirmed. Non-zero exit — and nobody had to know in advance this package was malicious."
 
 Then the GitHub Actions tab: a **red CI run** on the demo repo, failed by `cairn verify`.
-
-> Say: "Non-zero exit. The pipeline fails. The compromised dependency never reaches
-> production — and nobody had to know in advance that this package was malicious."
-
----
 
 ## 4. Fallbacks
 
@@ -166,7 +174,8 @@ Then the GitHub Actions tab: a **red CI run** on the demo repo, failed by `cairn
 |---|---|
 | Internet drops | Everything runs locally; switch to the local URL and keep going |
 | A service is dead | `pnpm dev` restart is 20s. Keep a second terminal pre-warmed |
-| Hardhat was restarted | `deploy:local && seed` — rehearse this recovery, timed |
+| Hardhat was restarted | `pnpm deploy:local && pnpm seed:local`, restart attesters, `pnpm registry:reset` + `demo:release` — rehearse, timed |
+| Unsure the stack works | Stop it and run `pnpm test:integration` (about one minute) |
 | Dashboard broken | Run the whole demo in the terminal. The CLI is the product |
 | Catastrophic | Play the recorded video, then take questions live |
 

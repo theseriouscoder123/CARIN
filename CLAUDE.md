@@ -143,11 +143,12 @@ pnpm cairn publish --package <name@version>   # needs CAIRN_PRIVATE_KEY
 
 # local registry (demo fixture — see docs/DEMO-RUNBOOK.md)
 pnpm registry:up              # Verdaccio on :4873
-pnpm registry:down
+pnpm registry:reset            # wipe local registry state (stop it first)
 
 # the CLI, during development
 pnpm --filter @cairn/cli dev -- publish --help
-pnpm --filter @cairn/cli dev -- verify --lockfile ./fixtures/demo/package-lock.json
+npx cairn verify --lockfile fixtures/demo/consumer/package-lock.json
+pnpm test:integration         # full demo path, cold start to BLOCK (stack must be stopped)
 ```
 
 Always run pnpm from the repo root unless using `--filter`. Never `npm install` inside a

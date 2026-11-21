@@ -29,15 +29,17 @@ function attesterSet(): Address[] {
 const attesters = attesterSet();
 const threshold = Number(process.env.CAIRN_THRESHOLD ?? "2");
 
+// The first block that can hold CAIRN events: QuorumPolicy emits AttesterAdded and
+// ThresholdChanged from its constructor, so indexers must start at its deployment block.
+const firstBlock = (await publicClient.getBlockNumber()) + 1n;
 const policy = await viem.deployContract("QuorumPolicy", [deployer.account.address, attesters, threshold]);
 const registry = await viem.deployContract("AttestationRegistry", [policy.address]);
-const block = await publicClient.getBlockNumber();
 
 const deployment = {
   chainId,
   registry: registry.address,
   quorumPolicy: policy.address,
-  deployedAtBlock: Number(block),
+  deployedAtBlock: Number(firstBlock),
   deployer: deployer.account.address,
   attesters,
   threshold,

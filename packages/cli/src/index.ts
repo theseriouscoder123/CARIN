@@ -17,6 +17,7 @@ import { Command, Option } from "commander";
 import { defaultPublishDeps, runPublish } from "./commands/publish.js";
 import { cacheDir, defaultRegistryUrl, defaultRpcUrl, payloadDir, type GlobalOptions } from "./config.js";
 import { loadAccount } from "./keys.js";
+import { createKeystore, decryptKeystore, defaultKeystorePath, readKeystore, readPassphrase } from "./keystore.js";
 import { renderPublish } from "./render/publish.js";
 import { createStyle, shouldColor } from "./render/style.js";
 
@@ -53,21 +54,53 @@ function emit(g: GlobalOptions, result: unknown, human: string): void {
   process.stdout.write(g.json ? `${JSON.stringify(result, null, 2)}\n` : `${human}\n`);
 }
 
+/** Key precedence: --key, CAIRN_PRIVATE_KEY, then --keystore / CAIRN_KEYSTORE (decrypted in memory). */
+async function resolveAccount(key: string | undefined, keystore: string | boolean | undefined) {
+  const raw = loadAccount(key);
+  if (raw) return raw;
+  const path = typeof keystore === "string" ? keystore : keystore === true ? defaultKeystorePath() : process.env.CAIRN_KEYSTORE;
+  if (!path) return undefined;
+  const store = readKeystore(path);
+  return decryptKeystore(store, await readPassphrase(`passphrase for ${store.address}: `));
+}
+
+program
+  .command("keygen")
+  .description("Create an encrypted publisher keystore (scrypt + AES-256-GCM); prints only the address")
+  .option("--out <file>", "keystore path", defaultKeystorePath())
+  .action(async (o: { out: string }) => {
+    const g = globals();
+    const pass = await readPassphrase("new keystore passphrase (min 8 chars): ");
+    if (!process.env.CAIRN_KEYSTORE_PASSWORD) {
+      const again = await readPassphrase("repeat passphrase: ");
+      if (again !== pass) throw new CairnError("KEYSTORE", "passphrases do not match");
+    }
+    const { address } = createKeystore(o.out, pass);
+    const result = { schema: "cairn.keygen.v1", address, keystore: o.out };
+    emit(g, result, `
+  ✓ keystore written to ${o.out}
+    publisher address ${address}
+
+  Fund this address, then: cairn publish --keystore ${o.out} <tarball>
+`);
+  });
+
 program
   .command("publish")
   .description("Digest, sign and submit an attestation for a release")
   .argument("[tarball]", "path to a local .tgz")
   .option("--package <name@version>", "resolve and fetch from the registry instead of a local file")
-  .option("--key <hex>", "signing key (prefer env CAIRN_PRIVATE_KEY)")
+  .option("--key <hex>", "raw signing key (prefer a keystore, or env CAIRN_PRIVATE_KEY)")
+  .option("--keystore [file]", "encrypted keystore from `cairn keygen` (env CAIRN_KEYSTORE)")
   .addOption(new Option("--payload-store <target>", "where the full payload is stored").choices(["local"]).default("local"))
   .option("--dry-run", "compute and print, submit nothing", false)
-  .action(async (tarball: string | undefined, o: { package?: string; key?: string; dryRun: boolean }) => {
+  .action(async (tarball: string | undefined, o: { package?: string; key?: string; keystore?: string | boolean; dryRun: boolean }) => {
     const g = globals();
     const result = await runPublish(
       {
         tarball,
         package: o.package,
-        account: loadAccount(o.key),
+        account: await resolveAccount(o.key, o.keystore),
         dryRun: o.dryRun,
         rpcUrl: g.rpcUrl,
         contract: g.contract,

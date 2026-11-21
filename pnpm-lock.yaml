@@ -303,6 +303,9 @@ importers:
         specifier: 5.6.1
         version: 5.6.1
     devDependencies:
+      '@cairn/cli':
+        specifier: workspace:*
+        version: link:../cli
       '@cairn/config':
         specifier: workspace:*
         version: link:../config

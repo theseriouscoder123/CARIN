@@ -5,8 +5,23 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
-  "bin": { "cairn": "./dist/index.js" },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./publish": {
+      "types": "./dist/commands/publish.d.ts",
+      "default": "./dist/commands/publish.js"
+    },
+    "./config": {
+      "types": "./dist/config.d.ts",
+      "default": "./dist/config.js"
+    }
+  },
+  "bin": {
+    "cairn": "./dist/index.js"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsx src/index.ts",

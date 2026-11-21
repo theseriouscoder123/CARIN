@@ -122,3 +122,12 @@ is currently collecting.
 | Date | Idea | Raised by |
 |---|---|---|
 | | | |
+
+## In-window deferrals
+
+- **IPFS payload store.** `cairn publish --payload-store` accepts only `local` in the MVP
+  (`${XDG_CACHE_HOME:-~/.cache}/cairn/payloads/<payloadDigest>.json`, re-hashed on read).
+  The on-chain `payloadDigest` is already the sha2-256 multihash a CIDv1/raw would carry, so
+  adding IPFS is a new `PayloadStore` implementation, not a contract change.
+- **Publisher key rotation.** Package names are pinned to their first publisher key; a
+  signed rotation message (old key authorises new key) is needed before real-world use.

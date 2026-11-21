@@ -24,7 +24,9 @@ function attempt(bytes: Uint8Array): "tree" | "typed-error" {
     return "tree";
   } catch (err) {
     if (err instanceof CairnError) return "typed-error";
-    throw new Error(`untyped failure on ${bytes.length}-byte input: ${err instanceof Error ? `${err.name}: ${err.message}` : String(err)}`);
+    throw new Error(`untyped failure on ${bytes.length}-byte input: ${err instanceof Error ? `${err.name}: ${err.message}` : String(err)}`, {
+      cause: err
+    });
   }
 }
 

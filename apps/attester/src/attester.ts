@@ -53,6 +53,8 @@ export interface AttesterOptions {
   recheckLimit?: number;
 }
 
+const MIN_LOG_CHUNK = 10;
+
 /** The policy is misconfigured (e.g. this key is not an attester). The process must exit. */
 export class FatalAttesterError extends CairnError {
   constructor(message: string, options?: { cause?: unknown }) {
@@ -90,6 +92,8 @@ export class Attester {
   private readonly now: () => Date;
   registryReachable = true;
   chainReachable = true;
+  /** Current getLogs range; shrinks automatically to fit the provider's cap. */
+  private chunk: number;
   readonly startedAt: Date;
 
   constructor(
@@ -101,6 +105,7 @@ export class Attester {
     this.random = deps.random ?? Math.random;
     this.now = deps.now ?? (() => new Date());
     this.startedAt = this.now();
+    this.chunk = opts.blockChunk ?? 2000;
 
     const loaded = deps.store.load();
     const fresh: AttesterState = {
@@ -155,11 +160,21 @@ export class Attester {
       throw err;
     }
     let processed = 0;
-    const chunk = BigInt(this.opts.blockChunk ?? 2000);
     let from = BigInt(this.state.lastProcessedBlock + 1);
     while (from <= head) {
+      const chunk = BigInt(this.chunk);
       const to = from + chunk - 1n < head ? from + chunk - 1n : head;
-      const events = await this.deps.chain.submittedEvents(from, to);
+      let events: SubmittedEvent[];
+      try {
+        events = await this.deps.chain.submittedEvents(from, to);
+      } catch (err) {
+        // Providers cap eth_getLogs ranges differently (Base's public RPC: 200 blocks).
+        // Halve and retry the same range; give up below the floor.
+        if (this.chunk <= MIN_LOG_CHUNK) throw err;
+        this.chunk = Math.max(MIN_LOG_CHUNK, Math.floor(this.chunk / 2));
+        this.log(`log query failed for ${to - from + 1n} blocks; retrying with ${this.chunk}-block ranges`);
+        continue;
+      }
       for (const ev of events) {
         await this.handleEvent(ev);
         processed++;

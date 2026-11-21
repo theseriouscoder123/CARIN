@@ -296,3 +296,29 @@ describe("clientChainSource.blockHash", () => {
     expect(await src.blockHash(5)).toBeUndefined();
   });
 });
+
+describe("provider log-range caps", () => {
+  it("shrinks the getLogs range to fit and still indexes everything", async () => {
+    const { chain, store } = setup();
+    chain.events = [...policy(1), submitted(PKG, "@cairn-demo/greeting", 900)];
+    chain.height = 1000;
+    const original = chain.logs.bind(chain);
+    chain.logs = async (from, to) => {
+      if (to - from + 1 > 200) throw new Error("eth_getLogs is limited to a 200 range");
+      return original(from, to);
+    };
+    const ingester = new Ingester(chain, store, { startBlock: 1, chunk: 2000 });
+    await ingester.tick();
+    expect((await store.counts()).total).toBe(1);
+    expect((await store.getMeta())?.lastIndexedBlock).toBe(1000);
+  });
+
+  it("gives up below the floor instead of looping forever", async () => {
+    const { chain, store } = setup();
+    chain.height = 100;
+    chain.logs = async () => {
+      throw new Error("rpc down");
+    };
+    await expect(new Ingester(chain, store, { startBlock: 1, chunk: 64 }).tick()).rejects.toThrow("rpc down");
+  });
+});

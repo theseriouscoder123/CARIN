@@ -76,6 +76,8 @@ export async function clientChainSource(client: CairnClient): Promise<ChainSourc
   };
 }
 
+const MIN_LOG_CHUNK = 10;
+
 export interface IngesterOptions {
   startBlock: number;
   chunk?: number;
@@ -90,6 +92,8 @@ export interface IngesterOptions {
 export class Ingester {
   headBlock = 0;
   lastIndexedBlock = -1;
+  /** Current getLogs range; shrinks automatically to fit the provider's cap. */
+  private chunk: number;
   private readonly log: (msg: string) => void;
 
   constructor(
@@ -98,6 +102,7 @@ export class Ingester {
     private readonly opts: IngesterOptions
   ) {
     this.log = opts.log ?? (() => {});
+    this.chunk = opts.chunk ?? 2000;
   }
 
   private fresh(): IndexMeta {
@@ -137,11 +142,19 @@ export class Ingester {
     }
 
     let ingested = 0;
-    const chunk = this.opts.chunk ?? 2000;
     let from = meta.lastIndexedBlock + 1;
     while (from <= head) {
-      const to = Math.min(from + chunk - 1, head);
-      const events = await this.chain.logs(from, to);
+      const to = Math.min(from + this.chunk - 1, head);
+      let events: IndexedEvent[];
+      try {
+        events = await this.chain.logs(from, to);
+      } catch (err) {
+        // Providers cap eth_getLogs ranges differently (Base's public RPC: 200 blocks).
+        if (this.chunk <= MIN_LOG_CHUNK) throw err;
+        this.chunk = Math.max(MIN_LOG_CHUNK, Math.floor(this.chunk / 2));
+        this.log(`log query failed for ${to - from + 1} blocks; retrying with ${this.chunk}-block ranges`);
+        continue;
+      }
       await this.store.insertEvents(events);
       await this.reproject(events.flatMap((e) => (e.packageId ? [e.packageId] : [])));
       meta = { ...meta, lastIndexedBlock: to, lastIndexedHash: (await this.chain.blockHash(to)) ?? null };

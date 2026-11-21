@@ -21,6 +21,7 @@ const EnvSchema = z.object({
   CAIRN_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(2000),
   CAIRN_START_BLOCK: z.coerce.number().int().nonnegative().optional(),
   CAIRN_STATE_DIR: z.string().default(".attester-state"),
+  CAIRN_LOG_CHUNK: z.coerce.number().int().min(10).default(2000),
   PORT: z.coerce.number().int().min(1).max(65535).default(4001)
 });
 
@@ -36,6 +37,7 @@ export interface AttesterConfig {
   startBlock?: number | undefined;
   stateDir: string;
   port: number;
+  logChunk: number;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AttesterConfig {
@@ -57,6 +59,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AttesterConfig
     pollIntervalMs: e.CAIRN_POLL_INTERVAL_MS,
     startBlock: e.CAIRN_START_BLOCK,
     stateDir: e.CAIRN_STATE_DIR,
+    logChunk: e.CAIRN_LOG_CHUNK,
     port: e.PORT
   };
 }

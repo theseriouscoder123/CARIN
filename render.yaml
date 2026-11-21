@@ -26,6 +26,9 @@ services:
         value: ""
       - key: CAIRN_POLL_INTERVAL_MS
         value: "4000"
+      # Base's public RPC caps eth_getLogs at 200 blocks (the indexer also adapts on its own).
+      - key: CAIRN_LOG_CHUNK
+        value: "200"
       - key: MONGODB_DB
         value: cairn
       # MongoDB Atlas connection string — set it in the Render dashboard, never in git.

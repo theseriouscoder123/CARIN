@@ -36,6 +36,7 @@ async function main(): Promise<void> {
 
   const ingester = new Ingester(await clientChainSource(client), store, {
     startBlock: config.startBlock ?? deployment?.deployedAtBlock ?? 0,
+    chunk: config.logChunk,
     log
   });
 

@@ -4,7 +4,8 @@
 //   pnpm attesters:up              local chain, Hardhat's published dev keys #2-#4
 //   pnpm attesters:base-sepolia    --keys <file>: keys generated locally (never committed)
 //
-// Flags: --registry <npm url>, --rpc <url>, --keys <env file>.
+// Flags: --registry <npm url>, --rpc <url>, --keys <env file>, --log-chunk <blocks>,
+//        --poll-ms <ms>.
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -16,6 +17,8 @@ const flag = (name) => {
 const npmRegistry = flag("--registry") ?? process.env.CAIRN_NPM_REGISTRY;
 const keysFile = flag("--keys");
 const rpcUrl = flag("--rpc") ?? process.env.CAIRN_RPC_URL ?? "http://127.0.0.1:8545";
+const logChunk = flag("--log-chunk") ?? process.env.CAIRN_LOG_CHUNK;
+const pollMs = flag("--poll-ms") ?? process.env.CAIRN_POLL_INTERVAL_MS;
 
 const LOCAL_DEV_KEYS = [
   "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a",
@@ -62,6 +65,8 @@ const children = ATTESTERS.map((a) => {
       ...process.env,
       CAIRN_RPC_URL: rpcUrl,
       ...(npmRegistry ? { CAIRN_NPM_REGISTRY: npmRegistry } : {}),
+      ...(logChunk ? { CAIRN_LOG_CHUNK: logChunk } : {}),
+      ...(pollMs ? { CAIRN_POLL_INTERVAL_MS: pollMs } : {}),
       CAIRN_ATTESTER_LABEL: a.label,
       CAIRN_ATTESTER_KEY: a.key,
       PORT: String(a.port),

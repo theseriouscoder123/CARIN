@@ -228,3 +228,24 @@ describe("config", () => {
     expect(c.key.startsWith("0x")).toBe(true);
   });
 });
+
+describe("provider log-range caps", () => {
+  it("shrinks the getLogs range until the provider accepts it, and processes every event", async () => {
+    const store = new MemoryStateStore();
+    const chain = new FakeChain();
+    chain.head = 5000n;
+    chain.events = [event({ blockNumber: 4321n })];
+    const ranges: bigint[] = [];
+    const original = chain.submittedEvents.bind(chain);
+    chain.submittedEvents = async (from, to) => {
+      ranges.push(to - from + 1n);
+      if (to - from + 1n > 200n) throw new Error("eth_getLogs is limited to a 200 range");
+      return original(from, to);
+    };
+    const attester = new Attester({ chain, registry: new FakeRegistry(), store, sleep: async () => {}, random: () => 0 }, { label: "a", startBlock: 1, blockChunk: 2000 });
+    await attester.sync();
+    expect(ranges.slice(0, 5)).toEqual([2000n, 1000n, 500n, 250n, 125n]);
+    expect(chain.calls).toHaveLength(1);
+    expect(attester.stats.lastProcessedBlock).toBe(5000);
+  });
+});

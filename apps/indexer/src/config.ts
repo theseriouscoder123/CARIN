@@ -13,7 +13,8 @@ const EnvSchema = z.object({
   CORS_ORIGINS: z.string().default("http://localhost:3000,http://127.0.0.1:3000"),
   CAIRN_ATTESTER_URLS: z.string().default("http://127.0.0.1:4001,http://127.0.0.1:4002,http://127.0.0.1:4003"),
   CAIRN_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(1500),
-  CAIRN_LAG_THRESHOLD: z.coerce.number().int().nonnegative().default(50)
+  CAIRN_LAG_THRESHOLD: z.coerce.number().int().nonnegative().default(50),
+  CAIRN_LOG_CHUNK: z.coerce.number().int().min(10).default(2000)
 });
 
 export interface IndexerConfig {
@@ -29,6 +30,7 @@ export interface IndexerConfig {
   attesterUrls: string[];
   pollIntervalMs: number;
   lagThreshold: number;
+  logChunk: number;
 }
 
 const list = (s: string) => s.split(",").map((x) => x.trim()).filter((x) => x !== "");
@@ -51,6 +53,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): IndexerConfig 
     corsOrigins: list(e.CORS_ORIGINS),
     attesterUrls: list(e.CAIRN_ATTESTER_URLS),
     pollIntervalMs: e.CAIRN_POLL_INTERVAL_MS,
-    lagThreshold: e.CAIRN_LAG_THRESHOLD
+    lagThreshold: e.CAIRN_LAG_THRESHOLD,
+    logChunk: e.CAIRN_LOG_CHUNK
   };
 }

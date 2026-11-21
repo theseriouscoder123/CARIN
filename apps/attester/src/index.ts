@@ -42,7 +42,7 @@ async function main(): Promise<void> {
       store: new JsonFileStateStore(join(config.stateDir, config.label, "state.json")),
       log
     },
-    { label: config.label, startBlock: config.startBlock ?? deployment?.deployedAtBlock ?? 0 }
+    { label: config.label, startBlock: config.startBlock ?? deployment?.deployedAtBlock ?? 0, blockChunk: config.logChunk }
   );
   startServer(attester, config.port);
   log(`up · ${account.address} · chain ${chainId} · registry ${registry}`);

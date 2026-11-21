@@ -24,7 +24,9 @@
     "demo:tamper": "node fixtures/demo/scripts/tamper.mjs",
     "demo:recheck": "node fixtures/demo/scripts/recheck.mjs",
     "demo:verify": "node packages/cli/dist/index.js verify --lockfile fixtures/demo/consumer/package-lock.json",
-    "test:integration": "node test/integration/demo-path.mjs"
+    "test:integration": "node test/integration/demo-path.mjs",
+    "db:up": "docker compose up -d --wait mongo",
+    "db:down": "docker compose down"
   },
   "devDependencies": {
     "@cairn/cli": "workspace:*",

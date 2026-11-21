@@ -1,0 +1,17 @@
+# Local services for development. MongoDB backs the indexer when MONGODB_URI is set.
+#   pnpm db:up    →  mongodb://127.0.0.1:27018
+services:
+  mongo:
+    image: mongo:8.0.4
+    container_name: cairn-mongo
+    ports:
+      - "127.0.0.1:27018:27017"   # 27018: avoids clashing with a native MongoDB on 27017
+    volumes:
+      - cairn-mongo:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+volumes:
+  cairn-mongo:

@@ -309,3 +309,54 @@ describe("integrity and rendering", () => {
     });
   });
 });
+
+describe("batched chain reads and digest cache", () => {
+  const LOCK2 = lock({
+    [`node_modules/${G}`]: { version: "1.0.0", resolved: "http://reg.test/g.tgz" },
+    "node_modules/other": { version: "1.0.0", resolved: "http://reg.test/o.tgz" }
+  });
+
+  it("uses one getRecords batch and never the per-package read", async () => {
+    let batches = 0;
+    const chain: RecordReader = {
+      getRecord: async () => {
+        throw new Error("per-package read must not be used when a batch is available");
+      },
+      getRecords: async (ids) => {
+        batches++;
+        return new Map(ids.map((id) => [id, id === ID ? record() : record({ packageId: id, exists: false })]));
+      }
+    };
+    const r = await verify(chain, serving(CLEAN), policy(), LOCK2);
+    expect(batches).toBe(1);
+    expect(r.summary).toMatchObject({ PASS: 1, UNATTESTED: 1 });
+  });
+
+  it("a failed batch fails closed: every dependency UNKNOWN, exit 2", async () => {
+    const chain: RecordReader = {
+      getRecord: async () => record(),
+      getRecords: async () => {
+        throw new Error("rate limited");
+      }
+    };
+    const r = await verify(chain, serving(CLEAN), policy(), LOCK2);
+    expect(r.summary).toEqual({ UNKNOWN: 2 });
+    expect(r.exitCode).toBe(2);
+  });
+
+  it("a digest-cache hit skips canonicalisation but still catches divergence and builds the delta", async () => {
+    const store = new Map<string, `0x${string}`>();
+    const digests = { get: (h: `0x${string}`) => store.get(h), set: (h: `0x${string}`, d: `0x${string}`) => void store.set(h, d) };
+    const run = () =>
+      runVerify(
+        { lockfile: "x", policy: policy(), only: [], concurrency: 2 },
+        { chain: chainWith(record()), artifacts: serving(TAMPERED), payloads, digests, readFile: async () => LOCK }
+      );
+    const first = await run();
+    expect(store.size).toBe(1);
+    const second = await run();
+    expect(second.results[0]?.verdict).toBe("DIVERGENT");
+    expect(second.results[0]?.observedDigest).toBe(first.results[0]?.observedDigest);
+    expect(second.results[0]?.delta?.some((d) => d.path === "scripts/postinstall.js")).toBe(true);
+  });
+});

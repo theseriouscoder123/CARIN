@@ -8,7 +8,7 @@ import {
   getChainId,
   resolveRegistryAddress
 } from "@cairn/core";
-import { CachingArtifactSource } from "./artifacts.js";
+import { CachingArtifactSource, FileDigestCache } from "./artifacts.js";
 import { renderStatus, runStatus } from "./commands/status.js";
 import { runVerify } from "./commands/verify.js";
 import { loadPolicy, type FailOnLevel } from "./policy.js";
@@ -117,6 +117,7 @@ program
         chain,
         chainError,
         payloads: new LocalPayloadStore(payloadDir()),
+        digests: new FileDigestCache(cacheDir()),
         onProgress: showProgress ? (d, t) => process.stderr.write(`\r  verifying ${d}/${t}…`) : undefined
       }
     );

@@ -59,6 +59,9 @@ export interface CairnClientConfig {
   registryAddress: Address;
 }
 
+/** Canonical Multicall3 address, identical on nearly every EVM chain (incl. Base Sepolia). */
+export const MULTICALL3: Address = "0xcA11bde05977b3631167028862bE2a173976CA11";
+
 export const attestationSubmittedEvent = parseAbiItem(
   "event AttestationSubmitted(bytes32 indexed packageId, address indexed publisher, bytes32 artifactDigest, bytes32 tarballHash, bytes32 payloadDigest, string ecosystem, string name, string version)"
 );
@@ -182,6 +185,80 @@ export class CairnClient {
         })),
         blockNumber
       };
+    });
+  }
+
+  private multicallAvailable: boolean | undefined;
+
+  /** Whether the canonical Multicall3 contract exists on this chain (cached). */
+  async hasMulticall(): Promise<boolean> {
+    if (this.multicallAvailable === undefined) {
+      const code = await wrapRead("multicall3 bytecode", () => this.public.getCode({ address: MULTICALL3 }));
+      this.multicallAvailable = code !== undefined && code !== "0x";
+    }
+    return this.multicallAvailable;
+  }
+
+  /**
+   * Many records at one block. Uses Multicall3 (3 calls per package, batched per request)
+   * where deployed, so a large lockfile costs a handful of RPC requests instead of
+   * thousands; falls back to individual reads elsewhere (e.g. a local Hardhat node).
+   */
+  async getRecords(packageIds: readonly Hex[], batchSize = 100): Promise<Map<Hex, OnChainRecord>> {
+    const out = new Map<Hex, OnChainRecord>();
+    if (packageIds.length === 0) return out;
+    if (!(await this.hasMulticall())) {
+      for (const id of packageIds) out.set(id, await this.getRecord(id));
+      return out;
+    }
+    return wrapRead(`${packageIds.length} records via multicall`, async () => {
+      const blockNumber = await this.public.getBlockNumber();
+      const at = { address: this.registry, abi: attestationRegistryAbi } as const;
+      const policy = await this.public.readContract({ ...at, functionName: "quorumPolicy", blockNumber });
+      const p = { address: policy, abi: quorumPolicyAbi } as const;
+      const [threshold, attesterCount] = await this.public.multicall({
+        contracts: [
+          { ...p, functionName: "threshold" },
+          { ...p, functionName: "attesterCount" }
+        ],
+        allowFailure: false,
+        blockNumber,
+        multicallAddress: MULTICALL3
+      });
+      for (let i = 0; i < packageIds.length; i += batchSize) {
+        const ids = packageIds.slice(i, i + batchSize);
+        const results = await this.public.multicall({
+          contracts: ids.flatMap((id) => [
+            { ...at, functionName: "getAttestation", args: [id] } as const,
+            { ...at, functionName: "hasQuorum", args: [id] } as const,
+            { ...at, functionName: "getDivergences", args: [id] } as const
+          ]),
+          allowFailure: false,
+          blockNumber,
+          multicallAddress: MULTICALL3
+        });
+        ids.forEach((id, j) => {
+          const rec = results[j * 3] as { artifactDigest: Hex; tarballHash: Hex; payloadDigest: Hex; publisher: Address; submittedAt: bigint; corroborations: number };
+          const hasQuorum = results[j * 3 + 1] as boolean;
+          const divergences = results[j * 3 + 2] as readonly { attester: Address; observedDigest: Hex; reportedAt: bigint }[];
+          out.set(id, {
+            packageId: id,
+            exists: rec.submittedAt !== 0n,
+            artifactDigest: rec.artifactDigest,
+            tarballHash: rec.tarballHash,
+            payloadDigest: rec.payloadDigest,
+            publisher: rec.publisher,
+            submittedAt: rec.submittedAt,
+            corroborations: rec.corroborations,
+            hasQuorum,
+            threshold,
+            attesterCount,
+            divergences: divergences.map((d) => ({ attester: d.attester, observedDigest: d.observedDigest, reportedAt: d.reportedAt })),
+            blockNumber
+          });
+        });
+      }
+      return out;
     });
   }
 

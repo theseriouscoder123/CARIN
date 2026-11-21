@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { CairnError, NpmAdapter } from "@cairn/core";
@@ -70,5 +71,35 @@ export class CachingArtifactSource implements ArtifactSource {
       await rename(`${file}.tmp`, file);
     }
     return { bytes, fromCache: false };
+  }
+}
+
+/**
+ * Digest cache on disk: `<cacheDir>/digests/<sha256 of tarball>` holds its artifactDigest.
+ * Keyed by the content hash of the exact bytes, so a hit can never belong to other bytes.
+ */
+export class FileDigestCache {
+  constructor(private readonly cacheDir: string) {}
+
+  private path(tarballHash: string): string {
+    return join(this.cacheDir, "digests", tarballHash.replace(/^0x/, ""));
+  }
+
+  get(tarballHash: `0x${string}`): `0x${string}` | undefined {
+    try {
+      const v = readFileSync(this.path(tarballHash), "utf8").trim();
+      return /^0x[0-9a-f]{64}$/.test(v) ? (v as `0x${string}`) : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  set(tarballHash: `0x${string}`, artifactDigest: `0x${string}`): void {
+    try {
+      mkdirSync(join(this.cacheDir, "digests"), { recursive: true });
+      writeFileSync(this.path(tarballHash), artifactDigest);
+    } catch {
+      // a cache that cannot be written is only a slower verify
+    }
   }
 }

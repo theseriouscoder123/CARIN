@@ -38,6 +38,8 @@ contract AttestationRegistry is EIP712 {
     mapping(bytes32 => mapping(address => bool)) private _hasDiverged;
     mapping(bytes32 => Divergence[]) private _divergences;
     mapping(address => uint256) private _nonces;
+    /// nameId = keccak256("<ecosystem>:<name>") → the publisher key pinned to that name.
+    mapping(bytes32 => address) private _namePublisher;
 
     event AttestationSubmitted(
         bytes32 indexed packageId,
@@ -49,6 +51,9 @@ contract AttestationRegistry is EIP712 {
         string name,
         string version
     );
+
+    /// @notice Emitted once per package name, when its first attestation pins a publisher.
+    event PackageNameClaimed(bytes32 indexed nameId, address indexed publisher, string ecosystem, string name);
 
     event AttesterCorroborated(
         bytes32 indexed packageId, address indexed attester, uint32 corroborations, bool quorumReached
@@ -69,6 +74,7 @@ contract AttestationRegistry is EIP712 {
     error ZeroDigest();
     error ZeroAddress();
     error NonceMismatch(uint256 expected, uint256 provided);
+    error PublisherNotPinned(bytes32 nameId, address pinned, address provided);
 
     /// @param policy The quorum policy contract; immutable for the life of the registry.
     constructor(IQuorumPolicy policy) EIP712("CAIRN", "1") {
@@ -80,6 +86,9 @@ contract AttestationRegistry is EIP712 {
     /// @dev Append-only: reverts if a record already exists for `packageId`. The signer is
     ///      recovered from an EIP-712 signature and must equal `publisher`, so any account
     ///      (e.g. a CI job) may relay a signature produced by an offline key.
+    ///      The first attestation of a package *name* pins its publisher; every later
+    ///      version of that name must be signed by the same key. A hijacked registry
+    ///      account therefore cannot produce attested releases without the CAIRN key.
     /// @param packageId keccak256("<ecosystem>:<name>@<version>"); verified on-chain.
     /// @param ecosystem Lowercase ecosystem name, e.g. "npm".
     /// @param name Registry package name, including scope.
@@ -110,6 +119,9 @@ contract AttestationRegistry is EIP712 {
         if (packageId != expectedId) revert PackageIdMismatch(packageId, expectedId);
         if (_attestations[packageId].submittedAt != 0) revert AttestationExists(packageId);
         if (publisher == address(0)) revert ZeroAddress();
+        bytes32 nameId = keccak256(abi.encodePacked(ecosystem, ":", name));
+        address pinned = _namePublisher[nameId];
+        if (pinned != address(0) && pinned != publisher) revert PublisherNotPinned(nameId, pinned, publisher);
         uint256 expectedNonce = _nonces[publisher];
         if (nonce != expectedNonce) revert NonceMismatch(expectedNonce, nonce);
 
@@ -130,6 +142,10 @@ contract AttestationRegistry is EIP712 {
 
         // --- effects
         _nonces[publisher] = expectedNonce + 1;
+        if (pinned == address(0)) {
+            _namePublisher[nameId] = publisher;
+            emit PackageNameClaimed(nameId, publisher, ecosystem, name);
+        }
         _attestations[packageId] = Attestation({
             artifactDigest: artifactDigest,
             tarballHash: tarballHash,
@@ -212,6 +228,12 @@ contract AttestationRegistry is EIP712 {
     /// @param publisher The signing address.
     function nonceOf(address publisher) external view returns (uint256) {
         return _nonces[publisher];
+    }
+
+    /// @notice The publisher key pinned to a package name, or zero if never attested.
+    /// @param nameId keccak256("<ecosystem>:<name>").
+    function publisherOf(bytes32 nameId) external view returns (address) {
+        return _namePublisher[nameId];
     }
 
     /// @notice The EIP-712 domain separator for this deployment.

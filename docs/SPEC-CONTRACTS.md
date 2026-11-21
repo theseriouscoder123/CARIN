@@ -132,6 +132,13 @@ write record → emit.
 The submitting account need not be the publisher. This matters: it lets a CI job relay a
 signature produced by an offline key.
 
+> **In-window change — publisher pinning.** The first attestation of a package *name*
+> (`nameId = keccak256("<ecosystem>:<name>")`) pins its publisher key and emits
+> `PackageNameClaimed`. Later versions of that name must be signed by the pinned key, else
+> `PublisherNotPinned`. This closes slot-squatting for every already-attested name and means
+> a hijacked npm account cannot mint attested releases. Read it with `publisherOf(nameId)`.
+> Key rotation is roadmap work.
+
 > **In-window change — explicit `publisher`.** Without it, a tampered signature simply
 > recovers to *some* address and the record is filed under that address; there is no way
 > to reject it, and the nonce check is meaningless because it is evaluated against an

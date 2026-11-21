@@ -182,6 +182,44 @@ describe("submit", () => {
   });
 });
 
+describe("publisher pinning", () => {
+  const nameId = keccak256(stringToBytes("npm:@cairn-demo/greeting"));
+
+  it("the first attestation pins the name to its publisher", async () => {
+    const { registry } = await deploy();
+    await viem.assertions.emitWithArgs(submit(registry), registry, "PackageNameClaimed", [
+      nameId,
+      publisher.account.address,
+      "npm",
+      "@cairn-demo/greeting"
+    ]);
+    assert.equal(
+      (await registry.read.publisherOf([nameId])).toLowerCase(),
+      publisher.account.address.toLowerCase()
+    );
+  });
+
+  it("a later version by the pinned publisher is accepted", async () => {
+    const { registry } = await deploy();
+    await submit(registry);
+    await submit(registry, { ...RELEASE, version: "1.0.1" });
+    assert.equal(await registry.read.exists([idOf({ ...RELEASE, version: "1.0.1" })]), true);
+  });
+
+  it("a validly-signed version from a different key reverts PublisherNotPinned", async () => {
+    const { registry } = await deploy();
+    await submit(registry);
+    const next = { ...RELEASE, version: "1.0.1" };
+    const sig = await sign(registry, next, 0n, outsider);
+    await viem.assertions.revertWithCustomErrorWithArgs(
+      submit(registry, next, { nonce: 0n, signature: sig, publisherAddr: outsider.account.address }),
+      registry,
+      "PublisherNotPinned",
+      [nameId, publisher.account.address, outsider.account.address]
+    );
+  });
+});
+
 describe("corroborate", () => {
   async function attested(threshold = 2) {
     const d = await deploy(threshold);

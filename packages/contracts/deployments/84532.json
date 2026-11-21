@@ -1,0 +1,15 @@
+{
+  "chainId": 84532,
+  "registry": "0x6261c3ba0c08768e0c2b0ef6028a5ebf6f6b77ec",
+  "quorumPolicy": "0x0b6326608c7df477c0389137485fafb50ac4346a",
+  "deployedAtBlock": 61748176,
+  "deployer": "0xe763b95d8dc2cc3d6de12faec6a2e4b4cc0adf01",
+  "attesters": [
+    "0xbC41A82a5bB0C00FCfA516FDC61Bc355b20195fa",
+    "0xa76CE4594bE2B342fBcF73204523ff39B8a097b7",
+    "0x4074eA0f2C2a5AA24979aA0CE09f672B9C51969c"
+  ],
+  "threshold": 2,
+  "abiHash": "0x6c9fe54b47a73a754fd81a7fc7fc3a01d10f18712026953a365e2d5c572db2a1",
+  "deployedAt": "2026-11-21T14:31:50.465Z"
+}

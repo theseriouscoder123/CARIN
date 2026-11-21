@@ -160,7 +160,7 @@ const json = async (r: Response): Promise<Json> => r.json();
 let server: Server | undefined;
 afterEach(() => server?.close());
 
-async function api(opts: { head?: number; last?: number; lagThreshold?: number } = {}) {
+async function api(opts: { head?: number; last?: number; lagThreshold?: number; rateLimit?: number } = {}) {
   const { chain, store, ingester } = setup();
   chain.events = [
     ...policy(1),
@@ -180,6 +180,7 @@ async function api(opts: { head?: number; last?: number; lagThreshold?: number }
     ingester: ing,
     corsOrigins: ["http://localhost:3000"],
     lagThreshold: opts.lagThreshold ?? 50,
+    rateLimitPerMinute: opts.rateLimit ?? 0,
     chain: { chainId: 31337, registry: REGISTRY },
     attesterHealth: async () => [
       { url: "http://a", health: { label: "attester-a", address: A, lastProcessedBlock: 6, processedCount: 2, divergencesReported: 0, registryReachable: true, chainReachable: true, uptimeSeconds: 5 } },
@@ -264,6 +265,23 @@ describe("API", () => {
     const get = await api();
     expect(await json(await get("/lookup?name=left-pad&version=1.3.0"))).toMatchObject({ packageId: PKG2, indexed: true, status: "VERIFIED" });
     expect(await json(await get("/lookup?name=ms&version=2.1.3"))).toMatchObject({ indexed: false });
+  });
+
+  it("sends security headers on every response", async () => {
+    const get = await api();
+    const res = await get("/stats");
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(res.headers.get("x-frame-options")).toBe("DENY");
+    expect(res.headers.get("content-security-policy")).toContain("default-src 'none'");
+    expect(res.headers.get("x-powered-by")).toBeNull();
+  });
+
+  it("rate-limits a client that exceeds its budget with 429", async () => {
+    const get = await api({ rateLimit: 5 });
+    const codes: number[] = [];
+    for (let i = 0; i < 8; i++) codes.push((await get("/stats")).status);
+    expect(codes.slice(0, 5).every((c) => c === 200)).toBe(true);
+    expect(codes.slice(5)).toContain(429);
   });
 
   it("CORS allows only the configured dashboard origin", async () => {

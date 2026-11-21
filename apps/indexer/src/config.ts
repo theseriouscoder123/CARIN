@@ -14,7 +14,9 @@ const EnvSchema = z.object({
   CAIRN_ATTESTER_URLS: z.string().default("http://127.0.0.1:4001,http://127.0.0.1:4002,http://127.0.0.1:4003"),
   CAIRN_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(1500),
   CAIRN_LAG_THRESHOLD: z.coerce.number().int().nonnegative().default(50),
-  CAIRN_LOG_CHUNK: z.coerce.number().int().min(10).default(2000)
+  CAIRN_LOG_CHUNK: z.coerce.number().int().min(10).default(2000),
+  CAIRN_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().nonnegative().default(600),
+  CAIRN_TRUST_PROXY: z.enum(["true", "false"]).default("false")
 });
 
 export interface IndexerConfig {
@@ -31,6 +33,8 @@ export interface IndexerConfig {
   pollIntervalMs: number;
   lagThreshold: number;
   logChunk: number;
+  rateLimitPerMinute: number;
+  trustProxy: boolean;
 }
 
 const list = (s: string) => s.split(",").map((x) => x.trim()).filter((x) => x !== "");
@@ -54,6 +58,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): IndexerConfig 
     attesterUrls: list(e.CAIRN_ATTESTER_URLS),
     pollIntervalMs: e.CAIRN_POLL_INTERVAL_MS,
     lagThreshold: e.CAIRN_LAG_THRESHOLD,
-    logChunk: e.CAIRN_LOG_CHUNK
+    logChunk: e.CAIRN_LOG_CHUNK,
+    rateLimitPerMinute: e.CAIRN_RATE_LIMIT_PER_MINUTE,
+    trustProxy: e.CAIRN_TRUST_PROXY === "true"
   };
 }

@@ -36,7 +36,8 @@
     "demo:verify:base-sepolia": "node fixtures/demo/scripts/testnet-env.mjs node packages/cli/dist/index.js verify --lockfile fixtures/demo/consumer/package-lock.json",
     "demo:preflight": "node fixtures/demo/scripts/preflight.mjs",
     "demo:preflight:base-sepolia": "node fixtures/demo/scripts/testnet-env.mjs node fixtures/demo/scripts/preflight.mjs",
-    "demo:recheck:base-sepolia": "node fixtures/demo/scripts/recheck.mjs"
+    "demo:recheck:base-sepolia": "node fixtures/demo/scripts/recheck.mjs",
+    "sbom": "pnpm sbom --sbom-format cyclonedx --lockfile-only"
   },
   "devDependencies": {
     "@cairn/cli": "workspace:*",

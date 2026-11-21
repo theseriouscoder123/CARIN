@@ -60,6 +60,8 @@ async function main(): Promise<void> {
     ingester,
     corsOrigins: config.corsOrigins,
     lagThreshold: config.lagThreshold,
+    rateLimitPerMinute: config.rateLimitPerMinute,
+    trustProxy: config.trustProxy,
     chain: { chainId, registry: address },
     attesterLabels: Object.fromEntries(Object.entries(deployment?.attesterLabels ?? {}).map(([a, l]) => [a.toLowerCase(), l])),
     attesterHealth: async () => {

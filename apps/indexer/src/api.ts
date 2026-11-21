@@ -27,6 +27,10 @@ export interface ApiDeps {
   attesterLabels?: Record<string, string>;
   corsOrigins: string[];
   lagThreshold: number;
+  /** Requests per minute per client before 429 (0 disables). */
+  rateLimitPerMinute?: number;
+  /** Trust one proxy hop for the client IP (Render, Vercel). */
+  trustProxy?: boolean;
   /** Where this index comes from, so a client can read the same contract itself. */
   chain: { chainId: number; registry: Address };
   log?: (line: string) => void;
@@ -72,6 +76,39 @@ const route =
 export function createApi(deps: ApiDeps): Express {
   const app = express();
   app.disable("x-powered-by");
+  if (deps.trustProxy) app.set("trust proxy", 1);
+
+  // Security headers: a JSON API is never framed, sniffed or allowed to load anything.
+  app.use((_req, res, next) => {
+    res.setHeader("x-content-type-options", "nosniff");
+    res.setHeader("x-frame-options", "DENY");
+    res.setHeader("referrer-policy", "no-referrer");
+    res.setHeader("content-security-policy", "default-src 'none'; frame-ancestors 'none'");
+    res.setHeader("cross-origin-resource-policy", "cross-origin");
+    next();
+  });
+
+  // Per-client token bucket (no dependency): refills continuously to the per-minute limit.
+  const limit = deps.rateLimitPerMinute ?? 0;
+  if (limit > 0) {
+    const buckets = new Map<string, { tokens: number; at: number }>();
+    app.use((req, res, next) => {
+      const key = req.ip ?? "unknown";
+      const now = Date.now();
+      const b = buckets.get(key) ?? { tokens: limit, at: now };
+      b.tokens = Math.min(limit, b.tokens + ((now - b.at) / 60_000) * limit);
+      b.at = now;
+      if (b.tokens < 1) {
+        res.setHeader("retry-after", "5");
+        res.status(429).json({ error: { code: "RATE_LIMITED", message: "too many requests — slow down" } });
+        return;
+      }
+      b.tokens -= 1;
+      buckets.set(key, b);
+      if (buckets.size > 10_000) buckets.clear(); // bound memory under address churn
+      next();
+    });
+  }
   const log = deps.log ?? (() => {});
 
   app.use((req, res, next) => {

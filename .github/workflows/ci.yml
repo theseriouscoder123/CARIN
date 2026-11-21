@@ -27,3 +27,9 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm build
       - run: pnpm test
+      - name: Software bill of materials (CycloneDX)
+        run: pnpm sbom --sbom-format cyclonedx --lockfile-only > sbom.cdx.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom-cyclonedx
+          path: sbom.cdx.json

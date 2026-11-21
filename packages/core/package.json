@@ -25,6 +25,10 @@
     "./rpc": {
       "types": "./dist/rpc.d.ts",
       "default": "./dist/rpc.js"
+    },
+    "./lockfile": {
+      "types": "./dist/lockfile.d.ts",
+      "default": "./dist/lockfile.js"
     }
   },
   "files": [

@@ -12,3 +12,4 @@ export * from "./chain.js";
 export * from "./rpc.js";
 export * from "./npm.js";
 export * from "./publication.js";
+export * from "./lockfile.js";

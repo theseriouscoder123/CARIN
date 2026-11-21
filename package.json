@@ -37,7 +37,11 @@
     "demo:preflight": "node fixtures/demo/scripts/preflight.mjs",
     "demo:preflight:base-sepolia": "node fixtures/demo/scripts/testnet-env.mjs node fixtures/demo/scripts/preflight.mjs",
     "demo:recheck:base-sepolia": "node fixtures/demo/scripts/recheck.mjs",
-    "sbom": "pnpm sbom --sbom-format cyclonedx --lockfile-only"
+    "sbom": "pnpm sbom --sbom-format cyclonedx --lockfile-only",
+    "demo:stage": "node fixtures/demo/scripts/stage.mjs",
+    "demo:rehearse": "node fixtures/demo/scripts/stage.mjs --rehearse",
+    "demo:stage:base-sepolia": "node fixtures/demo/scripts/testnet-env.mjs node fixtures/demo/scripts/stage.mjs",
+    "demo:rehearse:base-sepolia": "node fixtures/demo/scripts/testnet-env.mjs node fixtures/demo/scripts/stage.mjs --rehearse"
   },
   "devDependencies": {
     "@cairn/cli": "workspace:*",

@@ -30,3 +30,6 @@ packages/contracts/deployments/31337.json
 fixtures/demo/*.tgz
 fixtures/demo/consumer/node_modules/
 fixtures/demo/consumer/package-lock.json
+
+# vercel CLI link state
+.vercel

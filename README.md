@@ -96,6 +96,17 @@ test/integration The full demo path, automated
 docs/            Specifications
 ```
 
+## Live deployment
+
+- Dashboard: https://cairn-two-ecru.vercel.app
+- `AttestationRegistry` on Base Sepolia (chain 84532):
+  [`0x6261c3ba0c08768e0c2b0ef6028a5ebf6f6b77ec`](https://sepolia.basescan.org/address/0x6261c3ba0c08768e0c2b0ef6028a5ebf6f6b77ec)
+- `QuorumPolicy` (2-of-3):
+  [`0x0b6326608c7df477c0389137485fafb50ac4346a`](https://sepolia.basescan.org/address/0x0b6326608c7df477c0389137485fafb50ac4346a)
+
+Every attestation, corroboration and divergence the demo produces is a public transaction on
+Base Sepolia. Live on Base Sepolia since block 61748176.
+
 ## Quick start
 
 Requires Node 22 (`corepack enable` for pnpm 12). Docker is optional (MongoDB only).

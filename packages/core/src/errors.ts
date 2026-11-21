@@ -95,7 +95,11 @@ export class ManifestError extends CairnError {
 
 /** A transaction was sent but reverted, or could not be sent. */
 export class TransactionError extends CairnError {
-  constructor(message: string, options?: { cause?: unknown }) {
-    super("TRANSACTION", message, options);
+  /** The contract's custom error name when the revert was decoded, e.g. "AlreadyCorroborated". */
+  readonly errorName: string | undefined;
+
+  constructor(message: string, options?: { cause?: unknown; errorName?: string }) {
+    super("TRANSACTION", message, { cause: options?.cause });
+    this.errorName = options?.errorName;
   }
 }

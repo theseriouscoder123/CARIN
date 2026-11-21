@@ -26,6 +26,22 @@ export interface Publication {
   payloadDigest: Hex;
 }
 
+/** Result of digesting one artifact. */
+export interface ArtifactDigests {
+  tree: CanonicalTree;
+  artifactDigest: Hex;
+  tarballHash: Hex;
+}
+
+/**
+ * THE digest entry point. The CLI (publish and verify) and the attester all call this one
+ * function, so the two sides of a comparison can never run different code.
+ */
+export function digestArtifact(bytes: Uint8Array): ArtifactDigests {
+  const tree = canonicaliseTarball(bytes);
+  return { tree, artifactDigest: computeArtifactDigest(tree), tarballHash: computeTarballHash(bytes) };
+}
+
 /**
  * Steps 2–3 of `cairn publish` (SPEC-CLI §2): canonicalise, digest, build and hash the
  * payload. Pure given its inputs; no I/O, no chain access.
@@ -39,9 +55,7 @@ export function preparePublication(args: {
   producedAt?: Date;
 }): Publication {
   const id = packageId(args.ecosystem, args.name, args.version); // validates identity first
-  const tree = canonicaliseTarball(args.bytes);
-  const artifactDigest = computeArtifactDigest(tree);
-  const tarballHash = computeTarballHash(args.bytes);
+  const { tree, artifactDigest, tarballHash } = digestArtifact(args.bytes);
   const payload = buildAttestationPayload({
     ecosystem: args.ecosystem,
     name: args.name,

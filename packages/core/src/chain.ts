@@ -68,7 +68,14 @@ export function nameId(ecosystem: string, name: string): Hex {
   return keccak256(stringToBytes(`${ecosystem}:${name}`));
 }
 
-/** Pull the custom-error name out of a viem revert, if there is one. */
+/** The bare custom-error name of a viem revert, e.g. "AlreadyCorroborated". */
+export function revertErrorName(err: unknown): string | undefined {
+  if (!(err instanceof BaseError)) return undefined;
+  const reverted = err.walk((e) => e instanceof ContractFunctionRevertedError);
+  return reverted instanceof ContractFunctionRevertedError ? reverted.data?.errorName : undefined;
+}
+
+/** Pull the custom-error name and args out of a viem revert, if there is one. */
 export function revertReason(err: unknown): string | undefined {
   if (!(err instanceof BaseError)) return undefined;
   const reverted = err.walk((e) => e instanceof ContractFunctionRevertedError);
@@ -246,7 +253,12 @@ export class CairnClient {
       }));
     } catch (cause) {
       const reason = revertReason(cause);
-      if (reason !== undefined) throw new TransactionError(`${functionName} would revert: ${reason}`, { cause });
+      if (reason !== undefined) {
+        throw new TransactionError(`${functionName} would revert: ${reason}`, {
+          cause,
+          errorName: revertErrorName(cause)
+        });
+      }
       throw new ChainUnavailableError(`${functionName} simulation failed`, { cause });
     }
     try {

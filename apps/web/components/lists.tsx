@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ago, short } from "@/lib/format";
 import type { Attestation, AttestersResponse, DivergenceItem, Stats } from "@/lib/types";
-import { indexer, usePoll } from "@/lib/use-poll";
+import { indexer, refreshAll, usePoll } from "@/lib/use-poll";
 import { Card, Digest, StatusBadge, States, TxRef } from "./ui";
 
 export function statusDetail(a: Pick<Attestation, "status" | "corroborations" | "divergenceCount">, threshold?: number) {
@@ -53,6 +53,7 @@ export function DivergenceAlert() {
     if (seen.current !== null) {
       const fresh = d.data.items.find((i) => !seen.current!.has(i.txHash));
       if (fresh) {
+        refreshAll();
         setToast(fresh);
         setTimeout(() => setToast(null), 8000);
       }

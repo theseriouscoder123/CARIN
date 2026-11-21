@@ -86,23 +86,50 @@ hackathon window. See `CLAUDE.md` §0 for the rules that govern this repository 
 
 ```
 apps/web         Next.js 16 transparency dashboard
-apps/indexer     Express + viem event watcher → MongoDB
+apps/indexer     Express + viem event watcher → MongoDB (read-only API)
 apps/attester    Independent attester daemon
 packages/core    Digest, canonicalisation, EIP-712 types  ← the keystone
 packages/cli     The `cairn` binary
 packages/contracts  Solidity 0.8.26, Hardhat
+fixtures/demo/   The tamper demo: fixture package, consumer project, scripts
+test/integration The full demo path, automated
 docs/            Specifications
 ```
 
 ## Quick start
 
+Requires Node 22 (`corepack enable` for pnpm 12). Docker is optional (MongoDB only).
+
 ```bash
-pnpm install
-pnpm --filter @cairn/contracts hardhat node     # terminal 1: local chain
-pnpm --filter @cairn/contracts deploy:local     # terminal 2
-pnpm registry:up                                # local Verdaccio on :4873
-pnpm dev                                        # everything else
+pnpm install && pnpm build
+
+# see the whole thing work, unattended, in about a minute:
+pnpm test:integration          # cold-starts chain + registry + 3 attesters + indexer,
+                               # runs publish → quorum → PASS → tamper → divergence → BLOCK
 ```
+
+Or run it by hand, one terminal each:
+
+```bash
+pnpm chain                     # local Hardhat chain on :8545
+pnpm registry:up               # local npm registry (Verdaccio) on :4873
+pnpm deploy:local && pnpm seed:local
+pnpm attesters:demo            # three independent attester processes, :4001-4003
+pnpm dev                       # indexer :4100 + dashboard http://localhost:3000
+```
+
+```bash
+# Hardhat's published dev account #1 — a well-known test key, local chain only
+export CAIRN_PRIVATE_KEY=0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
+pnpm demo:release                         # publish the demo package to the local registry
+npx cairn publish fixtures/demo/cairn-demo-greeting-1.0.0.tgz
+npx cairn verify --lockfile fixtures/demo/consumer/package-lock.json    # PASS, exit 0
+pnpm demo:tamper && pnpm demo:recheck     # republish 1.0.0 with different bytes
+npx cairn verify --lockfile fixtures/demo/consumer/package-lock.json    # BLOCKED, exit 1
+```
+
+MongoDB for the indexer (otherwise it keeps an in-memory index rebuilt from chain events):
+`pnpm db:up`, then `MONGODB_URI=mongodb://127.0.0.1:27018 pnpm dev`.
 
 Full walkthrough: `docs/DEMO-RUNBOOK.md`.
 

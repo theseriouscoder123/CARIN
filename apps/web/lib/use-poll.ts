@@ -11,6 +11,13 @@ export interface PollState<T> {
   updatedAt: Date | undefined;
 }
 
+export const REFRESH_EVENT = "cairn:refresh";
+
+/** Ask every polling panel on the page to refresh now. */
+export function refreshAll(): void {
+  window.dispatchEvent(new Event(REFRESH_EVENT));
+}
+
 export class HttpError extends Error {
   constructor(
     readonly status: number,
@@ -51,9 +58,14 @@ export function usePoll<T>(fetcher: (() => Promise<T>) | null, key: string, inte
       if (document.visibilityState === "visible") void run();
     };
     document.addEventListener("visibilitychange", onVis);
+    // A significant event (e.g. a new divergence) asks every panel to refresh at once, so
+    // the page never shows a red banner beside a stat card from the previous poll.
+    const onRefresh = () => void run();
+    window.addEventListener(REFRESH_EVENT, onRefresh);
     return () => {
       clearInterval(id);
       document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener(REFRESH_EVENT, onRefresh);
     };
   }, [run, intervalMs, key]);
 

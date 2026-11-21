@@ -1,0 +1,28 @@
+{
+  "name": "@cairn/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./errors": { "types": "./dist/errors.d.ts", "default": "./dist/errors.js" }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint --no-error-on-unmatched-pattern src test"
+  },
+  "dependencies": {
+    "viem": "2.57.20",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@cairn/config": "workspace:*",
+    "vitest": "5.1.1"
+  }
+}

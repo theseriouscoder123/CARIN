@@ -1,0 +1,21 @@
+node_modules/
+dist/
+.turbo/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+
+# hardhat
+packages/contracts/artifacts/
+packages/contracts/cache/
+packages/contracts/types/
+packages/contracts/ignition/deployments/chain-31337/
+
+# local state
+.cairn/
+*.log
+.DS_Store

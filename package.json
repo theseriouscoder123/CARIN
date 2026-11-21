@@ -1,0 +1,22 @@
+{
+  "name": "cairn",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.18.0",
+  "engines": {
+    "node": ">=22.10"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "eslint": "10.15.0",
+    "turbo": "2.11.13",
+    "typescript": "5.9.3"
+  }
+}

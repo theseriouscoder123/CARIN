@@ -98,3 +98,29 @@ export interface DivergenceItem {
   txHash: Hex;
   timestamp: string;
 }
+
+/** One row per package name (GET /names). */
+export interface NameGroup {
+  name: string;
+  ecosystem: string;
+  latestVersion: string;
+  latestPackageId: Hex;
+  latestStatus: Status;
+  worstStatus: Status;
+  versionCount: number;
+  verified: number;
+  pending: number;
+  divergent: number;
+  publisher: Hex;
+  lastActivityBlock: number;
+  lastSubmittedAt: string;
+}
+
+/** Every version of one name plus name-level facts (GET /name?name=). */
+export interface NameDetail extends NameGroup {
+  pinnedPublisher: Hex | null;
+  pinnedAt: string | null;
+  firstAttestedAt: string;
+  versions: Attestation[];
+  asOfBlock: number;
+}

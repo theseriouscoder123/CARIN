@@ -6,6 +6,7 @@ import { Card, Digest, StatusBadge } from "@/components/ui";
 import { chainStatus, readRecord, type ChainRecord } from "@/lib/chain";
 import { INDEXER_URL, REGISTRY_ADDR, RPC_LABEL } from "@/lib/config";
 import { short } from "@/lib/format";
+import { packageHref } from "@/lib/links";
 import type { Health, Hex } from "@/lib/types";
 
 type Step = { label: string; state: "running" | "done" | "failed"; detail?: string };
@@ -133,7 +134,7 @@ export default function VerifyPage() {
               </dl>
             )}
             {status !== "UNATTESTED" ? (
-              <Link href={`/packages/${result.id}`} className="inline-block text-sky-300 hover:underline">
+              <Link href={packageHref(name.trim(), version.trim())} className="inline-block text-sky-300 hover:underline">
                 full record and timeline →
               </Link>
             ) : null}

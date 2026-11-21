@@ -6,6 +6,7 @@ import { chainStatus, hasCorroborated, readRecord, type ChainRecord } from "@/li
 import { EXPLORER_URL, REGISTRY_ADDR, RPC_LABEL } from "@/lib/config";
 import { ago, short } from "@/lib/format";
 import type { AttestersResponse, Health, Hex } from "@/lib/types";
+import { packageHref } from "@/lib/links";
 import { indexer, usePoll } from "@/lib/use-poll";
 
 interface FeedEvent {
@@ -115,7 +116,7 @@ export default function LivePage() {
             {target?.version ? <span className="text-neutral-400">@{target.version}</span> : null}
           </h1>
         </div>
-        <Link href={`/packages/${packageId}`} className="rounded-lg bg-neutral-100 px-5 py-3 text-lg font-semibold text-neutral-900 hover:bg-white">
+        <Link href={target?.name ? packageHref(target.name, target.version) : `/packages/${packageId}`} className="rounded-lg bg-neutral-100 px-5 py-3 text-lg font-semibold text-neutral-900 hover:bg-white">
           full record →
         </Link>
       </div>

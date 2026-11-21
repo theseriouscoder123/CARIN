@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ago, short } from "@/lib/format";
 import type { Attestation, AttestersResponse, DivergenceItem, Stats } from "@/lib/types";
+import { releaseHref } from "@/lib/links";
 import { indexer, refreshAll, usePoll } from "@/lib/use-poll";
 import { Card, Digest, StatusBadge, States, TxRef } from "./ui";
 
@@ -72,7 +73,7 @@ export function DivergenceAlert() {
           <ul className="mt-3 space-y-2">
             {[...pkgs.values()].slice(0, 3).map((i) => (
               <li key={i.packageId} className="text-lg text-red-100">
-                <Link href={`/packages/${i.packageId}`} className="font-semibold underline decoration-red-400 underline-offset-4">
+                <Link href={releaseHref(i)} className="font-semibold underline decoration-red-400 underline-offset-4">
                   {i.name}@{i.version}
                 </Link>{" "}
                 — attesters observed <span className="font-mono">{short(i.observedDigest)}</span>, attested{" "}
@@ -116,7 +117,7 @@ export function PackageTable({ items, threshold }: { items: Attestation[]; thres
           {items.map((a) => (
             <tr key={a._id} className={`border-t border-neutral-800 ${a.status === "DIVERGENT" ? "bg-red-950/40" : ""}`}>
               <td className="py-3 pr-4">
-                <Link href={`/packages/${a._id}`} className="font-semibold hover:underline">
+                <Link href={releaseHref({ name: a.name, version: a.version, packageId: a._id })} className="font-semibold hover:underline">
                   {a.name}
                   <span className="text-neutral-400">@{a.version}</span>
                 </Link>
@@ -225,7 +226,7 @@ export function DivergenceFeed() {
           <ul className="space-y-3">
             {x.items.map((i) => (
               <li key={i.txHash} className="rounded-md border border-red-900 bg-red-950/30 p-3">
-                <Link href={`/packages/${i.packageId}`} className="font-semibold text-red-100 hover:underline">
+                <Link href={releaseHref(i)} className="font-semibold text-red-100 hover:underline">
                   ✗ {i.name}@{i.version}
                 </Link>
                 <p className="mt-1 text-sm text-neutral-300">
@@ -322,7 +323,7 @@ export function ActivityFeed({ limit = 12 }: { limit?: number }) {
                     {r.icon}
                   </span>
                   {e.packageId ? (
-                    <Link href={`/packages/${e.packageId}`} className="text-lg hover:underline">
+                    <Link href={releaseHref(e)} className="text-lg hover:underline">
                       {r.text}
                     </Link>
                   ) : (

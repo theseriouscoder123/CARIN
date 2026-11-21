@@ -22,3 +22,6 @@ packages/contracts/ignition/deployments/chain-31337/
 
 # local chain deployments are regenerated on every Hardhat restart
 packages/contracts/deployments/31337.json
+
+# attester idempotency stores
+.attester-state/

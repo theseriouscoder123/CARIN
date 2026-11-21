@@ -12,7 +12,7 @@
     "start": "node dist/index.js",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src"
+    "lint": "eslint --no-error-on-unmatched-pattern src test"
   },
   "dependencies": {
     "@cairn/core": "workspace:*",

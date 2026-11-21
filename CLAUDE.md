@@ -134,6 +134,13 @@ pnpm --filter @cairn/contracts hardhat test
 pnpm --filter @cairn/contracts hardhat node          # local chain, port 8545
 pnpm --filter @cairn/contracts deploy:local
 
+# local end-to-end loop (each in its own terminal)
+pnpm chain                    # Hardhat node on :8545
+pnpm deploy:local             # writes packages/contracts/deployments/31337.json
+pnpm seed:local               # publishes real npm artifacts (no corroboration)
+pnpm attesters:up             # three separate attester processes, :4001-4003
+pnpm cairn publish --package <name@version>   # needs CAIRN_PRIVATE_KEY
+
 # local registry (demo fixture — see docs/DEMO-RUNBOOK.md)
 pnpm registry:up              # Verdaccio on :4873
 pnpm registry:down

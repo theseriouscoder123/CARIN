@@ -34,3 +34,7 @@ fixtures/demo/consumer/package-lock.json
 # vercel CLI link state
 .vercel
 fixtures/demo/consumer/package.json
+
+# standalone CLI build products
+packages/cli/standalone/dist/
+packages/cli/standalone/*.tgz

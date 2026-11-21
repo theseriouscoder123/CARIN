@@ -28,7 +28,8 @@
     "start": "node dist/index.js",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint --no-error-on-unmatched-pattern src test"
+    "lint": "eslint --no-error-on-unmatched-pattern src test",
+    "bundle": "node scripts/bundle.mjs"
   },
   "dependencies": {
     "@cairn/core": "workspace:*",
@@ -38,6 +39,7 @@
   },
   "devDependencies": {
     "@cairn/config": "workspace:*",
+    "esbuild": "0.28.2",
     "tsx": "4.23.15",
     "vitest": "5.1.1"
   }

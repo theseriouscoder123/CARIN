@@ -1,0 +1,56 @@
+# Build the standalone CLI and attach it to a GitHub Release when a cli-v* tag is pushed.
+# The tarball is installable without the npm registry:
+#   npx --yes https://github.com/<owner>/<repo>/releases/download/cli-vX.Y.Z/cairn-cli-X.Y.Z.tgz verify
+name: release-cli
+on:
+  push:
+    tags: ["cli-v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          # setup-node v5 auto-enables pnpm caching from packageManager; pnpm is not on PATH here
+          package-manager-cache: false
+      - name: Install and build the CLI
+        run: |
+          npx -y pnpm@12.18.0 install --frozen-lockfile --filter "@cairn/cli..."
+          npx -y pnpm@12.18.0 --filter "@cairn/cli..." build
+          npx -y pnpm@12.18.0 --filter @cairn/cli bundle
+      - name: Check the tag matches the package version
+        run: |
+          VERSION=$(node -p "require('./packages/cli/package.json').version")
+          test "cli-v${VERSION}" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} != cli-v${VERSION}"; exit 1; }
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+      - name: Smoke-test the bundle outside the workspace
+        run: |
+          mkdir -p /tmp/smoke && cd /tmp/smoke && npm init -y >/dev/null
+          npm install --no-save --no-audit --no-fund "$GITHUB_WORKSPACE/packages/cli/standalone/cairn-cli-${VERSION}.tgz"
+          npx cairn --version
+          npx cairn verify --lockfile "$GITHUB_WORKSPACE/fixtures/demo/ci-clean/package-lock.json"
+      - name: Publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/cairn-cli-${VERSION}.tgz"
+          cat > notes.md <<EOF
+          Standalone \`cairn\` CLI — one file, no dependencies, preconfigured for the public
+          deployment on Base Sepolia. Requires Node.js 22+.
+
+          \`\`\`bash
+          npx --yes ${URL} verify
+          npm install -g ${URL}
+          \`\`\`
+
+          Docs: https://cairn-two-ecru.vercel.app/docs
+          EOF
+          gh release create "${GITHUB_REF_NAME}" "packages/cli/standalone/cairn-cli-${VERSION}.tgz" \
+            --title "cairn-cli ${VERSION}" --notes-file notes.md

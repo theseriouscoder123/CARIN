@@ -162,3 +162,31 @@ describe("resolveRegistryAddress", () => {
     expect(() => resolveRegistryAddress({ chainId: 84532, deploymentFile: file, env: {} })).toThrow(ConfigError);
   });
 });
+
+describe("known deployments", () => {
+  it("are used only when nothing more specific is configured, and only for their chain", async () => {
+    const { registerKnownDeployment } = await import("../src/index.js");
+    registerKnownDeployment({
+      chainId: 84532,
+      registry: "0x6261c3ba0c08768e0c2b0ef6028a5ebf6f6b77ec",
+      quorumPolicy: "0x0b6326608c7df477c0389137485fafb50ac4346a",
+      deployedAtBlock: 1,
+      deployer: "0xe763b95d8dc2cc3d6de12faec6a2e4b4cc0adf01",
+      attesters: [],
+      threshold: 2,
+      abiHash: "0x",
+      deployedAt: "2026-11-21T00:00:00Z"
+    });
+    const cwd = process.cwd();
+    process.chdir(tmp()); // no deployments/ folder above a temp dir
+    try {
+      expect(resolveRegistryAddress({ chainId: 84532, env: {} }).address.toLowerCase()).toBe("0x6261c3ba0c08768e0c2b0ef6028a5ebf6f6b77ec");
+      expect(() => resolveRegistryAddress({ chainId: 1, env: {} })).toThrow(ConfigError);
+      expect(resolveRegistryAddress({ chainId: 84532, explicit: "0x5FbDB2315678afecb367f032d93F642f64180aa3", env: {} }).address).toBe(
+        "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+      );
+    } finally {
+      process.chdir(cwd);
+    }
+  });
+});

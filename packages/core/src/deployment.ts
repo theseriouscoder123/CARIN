@@ -27,6 +27,20 @@ export type Deployment = z.infer<typeof DeploymentSchema>;
 
 export const DEFAULT_RPC_URL = "http://127.0.0.1:8545";
 
+/**
+ * Deployments shipped inside a distribution (the standalone CLI bundles the public Base
+ * Sepolia deployment file). Consulted only when no explicit address, env var or
+ * deployment file is found, and still checked against the RPC's chain id.
+ */
+const KNOWN_DEPLOYMENTS = new Map<number, Deployment>();
+
+export function registerKnownDeployment(raw: unknown): Deployment {
+  const parsed = DeploymentSchema.safeParse(raw);
+  if (!parsed.success) throw new ConfigError(`invalid bundled deployment: ${parsed.error.message}`);
+  KNOWN_DEPLOYMENTS.set(parsed.data.chainId, parsed.data);
+  return parsed.data;
+}
+
 export function readDeploymentFile(path: string): Deployment {
   let raw: unknown;
   try {
@@ -73,6 +87,8 @@ export function resolveRegistryAddress(opts: {
     return { address: getAddress(direct) };
   }
   const file = opts.deploymentFile ?? env.CAIRN_DEPLOYMENT_FILE ?? findDeploymentFile(opts.chainId);
+  const known = KNOWN_DEPLOYMENTS.get(opts.chainId);
+  if (file === undefined && known) return { address: known.registry, deployment: known };
   if (file === undefined) {
     throw new ConfigError(
       `no registry address for chain ${opts.chainId}: pass --contract, set CAIRN_REGISTRY_ADDR, ` +

@@ -5,6 +5,41 @@ The live demo is the single highest-weighted thing in Phase 2 (Functional MVP & 
 
 ---
 
+## 0. The stage script (Base Sepolia, 4–5 minutes) — what we actually run
+
+**Waiting room, before the name is called:**
+
+```bash
+pnpm registry:up                       # terminal A (leave running)
+pnpm attesters:base-sepolia            # terminal B (leave running, visible on screen)
+pnpm demo:preflight:base-sepolia       # must print READY — fix anything red now
+pnpm demo:release:base-sepolia         # picks the next free version, e.g. 1.0.3
+```
+
+Open https://cairn-two-ecru.vercel.app (wakes the Render indexer) and keep it in a tab.
+
+| Time | Beat | Do | Say |
+|---|---|---|---|
+| 0:00 | Attest | `pnpm cairn:base-sepolia publish fixtures/demo/cairn-demo-greeting.tgz` | "The maintainer signs a digest of the release and anchors it on Base Sepolia." |
+| 0:40 | Corroborate | Switch to the dashboard: the live feed shows attester-a/b/c corroborating within seconds | "Three independent processes re-downloaded it and recomputed the digest themselves." |
+| 1:20 | Gate passes | `pnpm demo:verify:base-sepolia` → `PASSED`, exit 0 | "A clean CI run. Build proceeds." |
+| 1:50 | Tamper | `pnpm demo:tamper` | "Same version string. Different bytes. This is an account takeover." |
+| 2:20 | Detect | `pnpm demo:recheck:base-sepolia` → three `DIVERGENCE reported on-chain`; dashboard banner turns red | "Recorded on a public chain, attributed, permanent." |
+| 3:00 | Block | fresh resolve, then `pnpm demo:verify:base-sepolia` → `DIVERGENT`, delta names `scripts/postinstall.js (added)`, exit 1 | "npm is satisfied. CAIRN is not." |
+| 3:40 | Adoption | GitHub → Actions → *demo: tampered dependency* — green clean job, red tampered job, verdict table in the summary | "One line in any repo's CI: `uses: theseriouscoder123/CARIN@v1`." |
+| 4:20 | Close | Click a tx link to BaseScan | "Anyone can verify every step of what you just saw." |
+
+Fresh resolve for the block beat (a new developer's install):
+
+```bash
+cd fixtures/demo/consumer && del package-lock.json && npm install --package-lock-only && cd ../../..
+```
+
+Rehearse as often as you like: every `demo:release` picks a new version, because the chain
+is append-only. If anything fails mid-demo, the fallbacks in §4 apply.
+
+---
+
 ## 1. Why a local registry
 
 **npm does not permit republishing a version.** Once `1.0.0` is published, those bytes are

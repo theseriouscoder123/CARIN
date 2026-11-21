@@ -1,0 +1,190 @@
+openapi: 3.1.0
+info:
+  title: CAIRN indexer API
+  version: 1.0.0
+  description: >
+    Read-only view of CAIRN's on-chain attestation log, rebuilt from contract events. A
+    cache, never an authority: `cairn verify` reads the contract directly. Every response
+    carries `asOfBlock`. There are no write endpoints (non-GET requests return 405).
+servers:
+  - url: https://cairn-indexer.onrender.com/api/v1
+    description: Public deployment (Base Sepolia)
+  - url: http://127.0.0.1:4100/api/v1
+    description: Local development
+components:
+  schemas:
+    Hex32:
+      type: string
+      pattern: "^0x[0-9a-fA-F]{64}$"
+    Address:
+      type: string
+      pattern: "^0x[0-9a-fA-F]{40}$"
+    Status:
+      type: string
+      enum: [VERIFIED, PENDING, DIVERGENT]
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, examples: [BAD_REQUEST, NOT_FOUND, RATE_LIMITED, READ_ONLY] }
+            message: { type: string }
+    Attestation:
+      type: object
+      properties:
+        _id: { $ref: "#/components/schemas/Hex32", description: packageId }
+        ecosystem: { type: string }
+        name: { type: string }
+        version: { type: string }
+        artifactDigest: { $ref: "#/components/schemas/Hex32" }
+        tarballHash: { $ref: "#/components/schemas/Hex32" }
+        payloadDigest: { $ref: "#/components/schemas/Hex32" }
+        publisher: { $ref: "#/components/schemas/Address" }
+        submittedAt: { type: string, format: date-time }
+        blockNumber: { type: integer }
+        txHash: { type: string }
+        corroborations: { type: integer }
+        quorumReached: { type: boolean }
+        divergenceCount: { type: integer }
+        status: { $ref: "#/components/schemas/Status" }
+        lastActivityBlock: { type: integer }
+    Event:
+      type: object
+      properties:
+        id: { type: string, description: "txHash:logIndex" }
+        type: { type: string, enum: [AttestationSubmitted, AttesterCorroborated, DivergenceReported, PackageNameClaimed] }
+        packageId: { $ref: "#/components/schemas/Hex32" }
+        actor: { $ref: "#/components/schemas/Address" }
+        data: { type: object, additionalProperties: true }
+        blockNumber: { type: integer }
+        txHash: { type: string }
+        timestamp: { type: string, format: date-time }
+  responses:
+    BadRequest:
+      description: Invalid input (zod-validated)
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    NotFound:
+      description: Unknown package
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    RateLimited:
+      description: Too many requests; see Retry-After
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+paths:
+  /health:
+    get:
+      summary: Indexer status
+      description: 503 when lag exceeds the threshold or the store is down.
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  headBlock: { type: integer }
+                  lastIndexedBlock: { type: integer }
+                  lag: { type: integer }
+                  store: { type: string, enum: [mongo, memory] }
+                  chainId: { type: integer }
+                  registry: { $ref: "#/components/schemas/Address" }
+                  asOfBlock: { type: integer }
+        "503": { description: "Degraded (lagging or store down); same body with ok=false" }
+  /stats:
+    get:
+      summary: Totals for the dashboard header
+      responses:
+        "200":
+          description: Totals
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalAttestations: { type: integer }
+                  quorumReached: { type: integer }
+                  pending: { type: integer }
+                  divergent: { type: integer }
+                  activeAttesters: { type: integer }
+                  threshold: { type: integer }
+                  headBlock: { type: integer }
+                  indexerLag: { type: integer }
+                  asOfBlock: { type: integer }
+  /packages:
+    get:
+      summary: Attestations, divergent first, then most recent activity
+      parameters:
+        - { name: q, in: query, schema: { type: string, maxLength: 214 }, description: Name substring }
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/Status" } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+        - { name: cursor, in: query, schema: { type: integer, minimum: 0 }, description: lastActivityBlock of the previous page's last item }
+      responses:
+        "200":
+          description: A page of attestations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Attestation" } }
+                  nextCursor: { type: [integer, "null"] }
+                  asOfBlock: { type: integer }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /packages/{packageId}:
+    get:
+      summary: One attestation with its divergences and corroborators
+      parameters:
+        - { name: packageId, in: path, required: true, schema: { $ref: "#/components/schemas/Hex32" } }
+      responses:
+        "200": { description: "The record, plus divergences[] and corroborators[]" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /packages/{packageId}/timeline:
+    get:
+      summary: Every event for one package, newest first
+      parameters:
+        - { name: packageId, in: path, required: true, schema: { $ref: "#/components/schemas/Hex32" } }
+      responses:
+        "200":
+          description: Events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events: { type: array, items: { $ref: "#/components/schemas/Event" } }
+                  asOfBlock: { type: integer }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /events:
+    get:
+      summary: Live activity feed across all packages, newest first
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+      responses:
+        "200": { description: "items[]: events with package name/version and attester label" }
+  /attesters:
+    get:
+      summary: The on-chain attester set with activity counts and live health where reachable
+      responses:
+        "200": { description: "threshold, attesters[], unreachable[], healthConfigured" }
+  /divergences:
+    get:
+      summary: Every divergence report, newest first
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+      responses:
+        "200": { description: "items[]: expected vs observed digest, attester, tx" }
+  /lookup:
+    get:
+      summary: Resolve name + version to a packageId
+      parameters:
+        - { name: name, in: query, required: true, schema: { type: string } }
+        - { name: version, in: query, required: true, schema: { type: string } }
+      responses:
+        "200": { description: "packageId, indexed, status" }
+        "400": { $ref: "#/components/responses/BadRequest" }

@@ -1,0 +1,60 @@
+# Threat model
+
+What CAIRN defends against, what it does not, and where each guarantee comes from. Written
+for reviewers; every claim here maps to code and a test.
+
+## Assets
+
+| Asset | Why it matters |
+|---|---|
+| The attestation record (`AttestationRegistry`) | The ground truth every gate decision is derived from |
+| The `artifactDigest` | Binds a version string to an exact file tree |
+| Publisher keys | Whoever holds one can attest new versions of a pinned name |
+| Attester keys | Corroborations and divergence reports are attributed to them |
+| The CI verdict (`cairn verify` exit code) | What actually stops a compromised dependency |
+
+## Trust assumptions
+
+1. At least M of N attesters (2 of 3 today) are honest and fetch independently.
+2. The chain's history is immutable and its RPC returns real state (the dashboard and CLI
+   can be pointed at any RPC, including a self-run node).
+3. SHA-256 and keccak-256 are collision-resistant.
+
+Nothing else is trusted: not the npm registry, not CAIRN's operators, not the indexer, not
+the dashboard, not any single attester.
+
+## Threats and mitigations
+
+| # | Threat | Mitigation | Evidence |
+|---|---|---|---|
+| T1 | Same version republished with different bytes (account takeover, unpublish/republish, mirror tampering) | Verify digests the bytes this machine received and compares to the attested digest → `DIVERGENT`, exit 1. Attesters re-check and record divergence on-chain, revoking quorum. | `test/integration/demo-path.mjs`; live on Base Sepolia (1.0.0, 1.0.1) |
+| T2 | Registry serves attesters and victims different bytes (split view) | The victim's own `cairn verify` digests locally; attester agreement cannot make a different local digest pass. | `verify.test.ts` — "DIVERGENT even when the chain says quorum" |
+| T3 | Attacker submits an attestation for someone else's package | EIP-712 signature must recover to the named `publisher`; `packageId` is recomputed on-chain from the signed strings; nonces stop replay. | `AttestationRegistry.test.ts` (InvalidSignature, PackageIdMismatch, NonceMismatch) |
+| T4 | Attacker squats future versions of an established package | The first attestation of a name pins its publisher key; later versions from another key revert `PublisherNotPinned`. | `AttestationRegistry.test.ts` — publisher pinning |
+| T5 | Hijacked npm account publishes a new malicious version | Without the pinned CAIRN key it cannot be attested → `UNATTESTED` (warn, or fail with `--fail-on unattested`). | publisher pinning; verify policy tests |
+| T6 | Operator rewrites or deletes history | No update/delete path, no owner, no proxy; the ABI exposes only `submit` and `corroborate`; bytecode contains no DELEGATECALL / SELFDESTRUCT / CALLCODE. | `AttestationRegistry.test.ts` — immutability |
+| T7 | A lying indexer or dashboard | Gate decisions never use the indexer. Package pages re-read the contract from the browser and show agree/mismatch per field. | `verify.ts` reads the chain; dashboard dual read |
+| T8 | Chain or registry unreachable produces a false PASS | Fails closed: `UNKNOWN`, exit 2; a failed batched read marks every dependency `UNKNOWN`. | `verify.test.ts` — fail-closed tests |
+| T9 | Registry outage reported as tampering (false alarm) | Attesters retry, record `UNREACHABLE` locally and write nothing on-chain. | `attester.test.ts` — unreachable registry |
+| T10 | Repacking (gzip level, mtimes, entry order) reported as tampering | The digest is an RFC 6962 Merkle root over a normalised file tree, not a tarball hash. | `determinism.test.ts` — repack invariance |
+| T11 | Malicious archive crashes or hangs a verifier (path traversal, duplicate paths, gzip bombs, malformed headers) | Typed rejection of traversal and duplicates, 1 GiB inflate cap, checksum and bounds checks; fuzzed with ~8000 hostile inputs. | `determinism.test.ts`, `fuzz.test.ts` |
+| T12 | Poisoned local cache makes verify pass | Artifact cache keyed by URL + lockfile integrity and re-verified on every read; digest cache keyed by the SHA-256 of the exact bytes. | `artifacts.ts` |
+| T13 | An allowlist silently hides an attack | Allowlist entries need a reason and an expiry, expired entries are ignored, and `DIVERGENT` / `CONTESTED` can never be allowlisted. | `verify.test.ts` — allowlist |
+| T14 | Publisher key theft from disk | `cairn keygen` keystores: scrypt + AES-256-GCM, mode 0600; the raw key exists only in memory. | `keystore.test.ts` |
+| T15 | Abuse of the public API | Read-only (writes get 405), zod-validated input, per-client rate limit, security headers; dashboard CSP restricts connections to the indexer and RPC. | `indexer.test.ts` |
+
+## Known limitations (stated, not hidden)
+
+- **The attester set is admin-managed** (`QuorumPolicy`). The admin can change who attests
+  and the threshold; it cannot alter or erase any attestation. Roadmap: staked,
+  permissionless attesters with slashing.
+- **In this MVP all three attesters run on one machine** with keys generated by the team.
+  They are separate processes with separate keys, but not independent parties. A real
+  deployment needs attesters run by unrelated operators on separate networks.
+- **First attestation of a name is trust-on-first-use.** Whoever attests a brand-new name
+  first owns its pin. Roadmap: bind the pin to registry identity (npm trusted publishing /
+  OIDC) and support signed key rotation.
+- **Attestation says "unchanged since attested", not "built from this source".**
+  Reproducible-build proofs are roadmap work.
+- **CAIRN does not judge maliciousness.** It detects divergence; a malicious package that
+  is attested honestly and never changes is out of scope.

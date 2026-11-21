@@ -54,6 +54,8 @@ could not economically achieve: **independent re-verification of the artifact it
 2. **Independent attesters corroborate.** Nodes run by parties unrelated to the maintainer
    or the registry re-fetch the artifact, recompute the digest, and co-sign on-chain only
    if it matches. A mismatch is recorded as a divergence, not discarded.
+   *(In this hackathon MVP the three attesters are separate processes with separate keys,
+   but all run on the team's machine — see [Known limitations](docs/THREAT-MODEL.md#known-limitations-stated-not-hidden).)*
 3. **Quorum decides.** An attestation is valid only once M of N attesters agree. Trust is
    distributed across the attester set rather than concentrated in any operator.
 4. **CI enforces.** `cairn verify` resolves the lockfile, digests every artifact it is
@@ -106,6 +108,30 @@ docs/            Specifications
 
 Every attestation, corroboration and divergence the demo produces is a public transaction on
 Base Sepolia. Live on Base Sepolia since block 61748176.
+
+## Use it in CI
+
+One step in any GitHub Actions workflow, after checkout:
+
+```yaml
+- uses: theseriouscoder123/CARIN@v1
+  with:
+    lockfile: package-lock.json      # npm lockfile v2/v3
+    fail-on: under-quorum            # divergent | under-quorum | unattested
+```
+
+It digests every dependency from the bytes the runner downloads, reads quorum from the
+contract on Base Sepolia, writes a verdict table to the job summary, and fails the job on a
+divergent dependency. See it in action:
+[demo workflow](.github/workflows/demo-tampered-dependency.yml) — a clean lockfile passes,
+a republished dependency is blocked.
+
+## Documentation
+
+- [Threat model](docs/THREAT-MODEL.md) — what CAIRN defends against, and its known limits
+- [Decision records](docs/DECISIONS.md) — every deliberate departure from the original specs
+- [Indexer API (OpenAPI)](docs/openapi.yaml)
+- [Demo runbook](docs/DEMO-RUNBOOK.md) · [Architecture](docs/ARCHITECTURE.md)
 
 ## Quick start
 

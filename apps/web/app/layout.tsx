@@ -15,6 +15,7 @@ const NAV = [
   { href: "/packages", label: "Packages" },
   { href: "/attesters", label: "Attesters" },
   { href: "/verify", label: "Verify" },
+  { href: "/check", label: "Check a lockfile" },
   { href: "/about", label: "How it works" }
 ];
 

@@ -70,3 +70,47 @@ export function chainStatus(r: ChainRecord): ChainStatus {
 export async function hasCorroborated(registry: Address, packageId: Hex, attester: Address): Promise<boolean> {
   return client.readContract({ address: registry, abi: attestationRegistryAbi, functionName: "hasCorroborated", args: [packageId, attester] });
 }
+
+/** Canonical Multicall3 address (deployed on Base Sepolia and most EVM chains). */
+const MULTICALL3 = "0xcA11bde05977b3631167028862bE2a173976CA11" as const;
+
+export interface StatusRecord {
+  exists: boolean;
+  hasQuorum: boolean;
+  corroborations: number;
+  divergences: number;
+}
+
+/**
+ * Status for many packages at once, batched through Multicall3 (100 per request) where
+ * deployed, falling back to individual reads on chains without it (a local Hardhat node).
+ */
+export async function readStatuses(registry: Address, ids: readonly Hex[], onProgress?: (done: number) => void): Promise<Map<Hex, StatusRecord>> {
+  const out = new Map<Hex, StatusRecord>();
+  const code = await client.getCode({ address: MULTICALL3 });
+  const hasMulticall = code !== undefined && code !== "0x";
+  const blockNumber = await client.getBlockNumber();
+  const at = { address: registry, abi: attestationRegistryAbi } as const;
+  for (let i = 0; i < ids.length; i += 100) {
+    const batch = ids.slice(i, i + 100);
+    const calls = batch.flatMap((id) => [
+      { ...at, functionName: "getAttestation", args: [id] } as const,
+      { ...at, functionName: "hasQuorum", args: [id] } as const,
+      { ...at, functionName: "getDivergences", args: [id] } as const
+    ]);
+    const results = hasMulticall
+      ? await client.multicall({ contracts: calls, allowFailure: false, blockNumber, multicallAddress: MULTICALL3 })
+      : await Promise.all(calls.map((c) => client.readContract({ ...c, blockNumber } as never)));
+    batch.forEach((id, j) => {
+      const rec = results[j * 3] as { submittedAt: bigint; corroborations: number };
+      out.set(id, {
+        exists: rec.submittedAt !== 0n,
+        corroborations: rec.corroborations,
+        hasQuorum: results[j * 3 + 1] as boolean,
+        divergences: (results[j * 3 + 2] as readonly unknown[]).length
+      });
+    });
+    onProgress?.(Math.min(i + batch.length, ids.length));
+  }
+  return out;
+}

@@ -1,8 +1,21 @@
 #!/usr/bin/env node
-import { CairnError } from "@cairn/core";
+import {
+  CairnClient,
+  CairnError,
+  ChainUnavailableError,
+  ConfigError,
+  LocalPayloadStore,
+  getChainId,
+  resolveRegistryAddress
+} from "@cairn/core";
+import { CachingArtifactSource } from "./artifacts.js";
+import { renderStatus, runStatus } from "./commands/status.js";
+import { runVerify } from "./commands/verify.js";
+import { loadPolicy, type FailOnLevel } from "./policy.js";
+import { renderVerify } from "./render/verify.js";
 import { Command, Option } from "commander";
 import { defaultPublishDeps, runPublish } from "./commands/publish.js";
-import { defaultRegistryUrl, defaultRpcUrl, payloadDir, type GlobalOptions } from "./config.js";
+import { cacheDir, defaultRegistryUrl, defaultRpcUrl, payloadDir, type GlobalOptions } from "./config.js";
 import { loadAccount } from "./keys.js";
 import { renderPublish } from "./render/publish.js";
 import { createStyle, shouldColor } from "./render/style.js";
@@ -65,11 +78,61 @@ program
     emit(g, result, renderPublish(result, createStyle(g.color)));
   });
 
+async function connectChain(g: GlobalOptions): Promise<CairnClient> {
+  const chainId = await getChainId(g.rpcUrl);
+  const { address } = resolveRegistryAddress({ chainId, explicit: g.contract, deploymentFile: g.deployment });
+  return CairnClient.connect({ rpcUrl: g.rpcUrl, registryAddress: address });
+}
+
+const collect = (v: string, prev: string[]) => [...prev, v];
+
 program
   .command("verify")
   .description("Verify every dependency in an npm lockfile against on-chain quorum")
-  .action(() => {
-    throw new CairnError("NOT_IMPLEMENTED", "cairn verify lands in the next milestone");
+  .option("--lockfile <path>", "npm lockfile (v2/v3)", "./package-lock.json")
+  .option("--policy <path>", "policy file (default ./cairn.policy.json, else built-in)")
+  .addOption(new Option("--fail-on <level>", "lowest verdict that fails the build").choices(["divergent", "under-quorum", "unattested"]))
+  .option("--only <pattern>", "restrict to matching package names (repeatable, * wildcard)", collect, [] as string[])
+  .option("--concurrency <n>", "parallel fetches", (v) => Math.max(1, Number.parseInt(v, 10) || 8), 8)
+  .option("--offline", "use only the local artifact cache; never fetch", false)
+  .action(async (o: { lockfile: string; policy?: string; failOn?: FailOnLevel; only: string[]; concurrency: number; offline: boolean }) => {
+    const g = globals();
+    const policy = loadPolicy({ path: o.policy, failOn: o.failOn });
+
+    // The gate fails closed: if the chain cannot be read, every dependency is UNKNOWN.
+    let chain: CairnClient | undefined;
+    let chainError: string | undefined;
+    try {
+      chain = await connectChain(g);
+    } catch (err) {
+      if (!(err instanceof ChainUnavailableError || err instanceof ConfigError)) throw err;
+      chainError = err.message;
+    }
+
+    const showProgress = !g.json && process.stderr.isTTY === true;
+    const report = await runVerify(
+      { lockfile: o.lockfile, policy, only: o.only, concurrency: o.concurrency },
+      {
+        artifacts: new CachingArtifactSource(cacheDir(), o.offline),
+        chain,
+        chainError,
+        payloads: new LocalPayloadStore(payloadDir()),
+        onProgress: showProgress ? (d, t) => process.stderr.write(`\r  verifying ${d}/${t}…`) : undefined
+      }
+    );
+    if (showProgress) process.stderr.write("\r\u001b[2K");
+    emit(g, report, renderVerify(report, createStyle(g.color)));
+    process.exitCode = report.exitCode;
+  });
+
+program
+  .command("status")
+  .description("Show the on-chain attestation record for one package")
+  .argument("<name@version>")
+  .action(async (spec: string) => {
+    const g = globals();
+    const report = await runStatus(spec, await connectChain(g));
+    emit(g, report, renderStatus(report, createStyle(g.color)));
   });
 
 // `pnpm --filter @cairn/cli dev -- publish …` forwards the literal "--"; drop it.

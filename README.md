@@ -128,6 +128,7 @@ a republished dependency is blocked.
 
 ## Documentation
 
+- [Pitch facts](docs/PITCH-FACTS.md) — every number measured on the live deployment
 - [Threat model](docs/THREAT-MODEL.md) — what CAIRN defends against, and its known limits
 - [Decision records](docs/DECISIONS.md) — every deliberate departure from the original specs
 - [Indexer API (OpenAPI)](docs/openapi.yaml)

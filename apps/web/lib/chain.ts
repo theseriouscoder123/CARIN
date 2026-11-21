@@ -6,7 +6,8 @@ import { createPublicClient, type Address, type Hex } from "viem";
 import { RPC_URL } from "./config";
 
 // One URL or a comma-separated failover list (NEXT_PUBLIC_RPC_URL).
-const client = createPublicClient({ transport: rpcTransport(RPC_URL, { retryCount: 1, timeout: 8000 }) });
+// cacheTime 1s: the live view should not lag the chain by viem's default 4s block cache.
+const client = createPublicClient({ transport: rpcTransport(RPC_URL, { retryCount: 1, timeout: 8000 }), cacheTime: 1000 });
 
 export interface ChainRecord {
   exists: boolean;

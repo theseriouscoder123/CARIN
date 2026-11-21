@@ -149,7 +149,13 @@ export default function LivePage() {
               </div>
               <p className="mt-2 font-mono text-base opacity-80">{short(a.address, 6, 4)}</p>
               <p className="mt-4 text-xl font-semibold">
-                {st === "diverged" ? "observed different bytes" : st === "corroborated" ? "re-fetched · digest matches" : "re-fetching…"}
+                {st === "diverged"
+                  ? "observed different bytes"
+                  : st === "corroborated"
+                    ? "re-fetched · digest matches"
+                    : record?.exists
+                      ? "re-fetching…"
+                      : "standing by"}
               </p>
             </div>
           );

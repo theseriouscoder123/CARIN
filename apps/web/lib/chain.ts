@@ -64,3 +64,8 @@ export function chainStatus(r: ChainRecord): ChainStatus {
   if (r.divergences.length > 0) return "DIVERGENT";
   return r.hasQuorum ? "VERIFIED" : "PENDING";
 }
+
+/** Whether `attester` has corroborated `packageId` — read straight from the contract. */
+export async function hasCorroborated(registry: Address, packageId: Hex, attester: Address): Promise<boolean> {
+  return client.readContract({ address: registry, abi: attestationRegistryAbi, functionName: "hasCorroborated", args: [packageId, attester] });
+}

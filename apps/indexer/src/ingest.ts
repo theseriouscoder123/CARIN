@@ -1,5 +1,5 @@
 import { attestationRegistryAbi, quorumPolicyAbi, type CairnClient } from "@cairn/core";
-import { parseEventLogs, type Address, type Hex } from "viem";
+import { BlockNotFoundError, parseEventLogs, type Address, type Hex } from "viem";
 import { projectAttestation } from "./projection.js";
 import type { IndexStore } from "./store.js";
 import { EVENT_TYPES, type EventType, type IndexMeta, type IndexedEvent } from "./types.js";
@@ -34,8 +34,11 @@ export async function clientChainSource(client: CairnClient): Promise<ChainSourc
       if (block < 0) return undefined;
       try {
         return (await client.public.getBlock({ blockNumber: BigInt(block) })).hash ?? undefined;
-      } catch {
-        return undefined;
+      } catch (err) {
+        // Only a block that genuinely does not exist counts as "changed". An RPC failure
+        // must propagate: treating it as a hash mismatch would wipe the index on any blip.
+        if (err instanceof BlockNotFoundError) return undefined;
+        throw err;
       }
     },
     async logs(from, to) {

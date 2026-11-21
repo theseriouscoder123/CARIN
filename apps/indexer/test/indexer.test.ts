@@ -126,6 +126,19 @@ describe("ingestion", () => {
     expect(await store.eventsOfTypes(["DivergenceReported"])).toHaveLength(0);
   });
 
+  it("an RPC failure during the checkpoint check leaves the index untouched", async () => {
+    const { chain, store, ingester } = setup();
+    chain.events = [...policy(1), submitted(PKG, "@cairn-demo/greeting", 2), diverged(PKG, A, 3)];
+    chain.height = 3;
+    await ingester.tick();
+    chain.blockHash = async () => {
+      throw new Error("ECONNREFUSED");
+    };
+    await expect(ingester.tick()).rejects.toThrow("ECONNREFUSED");
+    expect((await store.getAttestation(PKG))?.status).toBe("DIVERGENT");
+    expect((await store.getMeta())?.lastIndexedBlock).toBe(3);
+  });
+
   it("a chain head behind the checkpoint (Hardhat restarted) triggers a rebuild", async () => {
     const { chain, store, ingester } = setup();
     chain.events = [...policy(1), submitted(PKG, "@cairn-demo/greeting", 2)];
@@ -251,5 +264,34 @@ describe("API", () => {
     expect(ok.headers.get("access-control-allow-origin")).toBe("http://localhost:3000");
     const no = await get("/stats", { headers: { origin: "http://evil.test" } });
     expect(no.headers.get("access-control-allow-origin")).toBeNull();
+  });
+});
+
+describe("clientChainSource.blockHash", () => {
+  async function sourceWith(getBlock: () => Promise<{ hash: Hex }>) {
+    const { clientChainSource } = await import("../src/ingest.js");
+    const { BlockNotFoundError } = await import("viem");
+    const fake = {
+      chainId: 31337,
+      registry: REGISTRY,
+      quorumPolicyAddress: async () => REGISTRY,
+      public: { getBlock }
+    } as unknown as Parameters<typeof clientChainSource>[0];
+    return { src: await clientChainSource(fake), BlockNotFoundError };
+  }
+
+  it("propagates RPC failures instead of reporting a changed hash", async () => {
+    const { src } = await sourceWith(async () => {
+      throw new Error("fetch failed");
+    });
+    await expect(src.blockHash(5)).rejects.toThrow("fetch failed");
+  });
+
+  it("reports a genuinely missing block as undefined", async () => {
+    const { BlockNotFoundError } = await import("viem");
+    const { src } = await sourceWith(async () => {
+      throw new BlockNotFoundError({ blockNumber: 5n });
+    });
+    expect(await src.blockHash(5)).toBeUndefined();
   });
 });

@@ -8,6 +8,10 @@
 // `pnpm test`. Requires ports 8545, 4873 and 4001-4003 to be free. Wipes the local demo
 // registry under .cairn/verdaccio; isolates attester state, payloads and caches under
 // .cairn/it-* so a developer's own state is untouched.
+//
+// The indexer runs too. Set CAIRN_IT_MONGODB_URI (e.g. mongodb://127.0.0.1:27018 after
+// `pnpm db:up`) to back it with MongoDB and also assert restart-resume from checkpoint;
+// otherwise it uses the in-memory store.
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
 import { createConnection } from "node:net";
@@ -28,6 +32,8 @@ const env = {
   CAIRN_RECHECK_INTERVAL: "3600",
   NO_COLOR: "1"
 };
+const MONGO_URI = process.env.CAIRN_IT_MONGODB_URI;
+const INDEXER = "http://127.0.0.1:4100/api/v1";
 const started = Date.now();
 const children = [];
 const t = () => `${((Date.now() - started) / 1000).toFixed(1).padStart(6)}s`;
@@ -82,8 +88,15 @@ function cairn(args, extraEnv = {}) {
   return { code: res.status, json };
 }
 
-function background(name, cmd, args) {
-  const child = spawn(cmd, args, { cwd: ROOT, env, stdio: ["ignore", "pipe", "pipe"], shell: process.platform === "win32" && cmd !== process.execPath });
+function spawnIndexer() {
+  return background("indexer", process.execPath, [join(ROOT, "apps", "indexer", "dist", "index.js")], {
+    ...(MONGO_URI ? { MONGODB_URI: MONGO_URI, MONGODB_DB: "cairn_it" } : { MONGODB_URI: "" }),
+    CAIRN_POLL_INTERVAL_MS: "500"
+  });
+}
+
+function background(name, cmd, args, extraEnv = {}) {
+  const child = spawn(cmd, args, { cwd: ROOT, env: { ...env, ...extraEnv }, stdio: ["ignore", "pipe", "pipe"], shell: process.platform === "win32" && cmd !== process.execPath });
   let log = "";
   child.stdout.on("data", (d) => (log += d));
   child.stderr.on("data", (d) => (log += d));
@@ -103,7 +116,7 @@ async function health(port) {
 
 async function main() {
   if (!existsSync(CLI)) throw new AssertionFailed("build first: pnpm build");
-  for (const port of [8545, 4873, 4001, 4002, 4003]) {
+  for (const port of [8545, 4873, 4001, 4002, 4003, 4100]) {
     if (await portOpen(port)) throw new AssertionFailed(`port ${port} is in use — stop the dev stack before running the integration test`);
   }
   for (const d of ["verdaccio", "it-attester-state", "it-payloads", "it-cache"]) rmSync(join(IT, d), { recursive: true, force: true });
@@ -118,6 +131,16 @@ async function main() {
   step("deploy + seed real npm artifacts");
   run("pnpm", ["deploy:local"]);
   run("pnpm", ["seed:local"]);
+
+  step(`indexer (${MONGO_URI ? "MongoDB" : "in-memory store"})`);
+  const startIndexer = () => spawnIndexer();
+  let indexerProc = startIndexer();
+  await waitFor("indexer API", async () => (await fetch(`${INDEXER}/health`)).ok);
+  const pendingStats = await waitFor("indexer to see the seed", async () => {
+    const st = await (await fetch(`${INDEXER}/stats`)).json();
+    return st.totalAttestations === 4 ? st : undefined;
+  });
+  assert(pendingStats.pending === 4 && pendingStats.activeAttesters === 3 && pendingStats.threshold === 2, "indexer: 4 pending, 3 attesters, threshold 2 — all from chain events");
 
   step("three attester processes against the local registry");
   background("attesters", process.execPath, [join(ROOT, "apps", "attester", "scripts", "up.mjs"), "--registry", "http://127.0.0.1:4873"]);
@@ -142,6 +165,11 @@ async function main() {
     return s.corroborations === 3 ? s : undefined;
   });
   assert(status.hasQuorum === true, "3/3 independent corroborations, quorum reached on-chain");
+  const indexedVerified = await waitFor("indexer to show the demo package verified", async () => {
+    const d = await (await fetch(`${INDEXER}/packages/${pub.json.packageId}`)).json();
+    return d.status === "VERIFIED" ? d : undefined;
+  });
+  assert(indexedVerified.corroborations === 3, "indexer: demo package VERIFIED with 3 corroborations");
 
   step("ACT 2 — the gate passes");
   let v = cairn(["verify", "--lockfile", CONSUMER_LOCK]);
@@ -163,6 +191,32 @@ async function main() {
   assert(observed.size === 1 && !observed.has(attestedDigest), "all three observed the same, different digest");
   const after = cairn(["status", "@cairn-demo/greeting@1.0.0"]).json;
   assert(after.divergences.length === 3 && after.hasQuorum === false, "3 divergences on-chain; quorum revoked");
+  const indexedDivergent = await waitFor("indexer to show the divergence", async () => {
+    const d = await (await fetch(`${INDEXER}/packages/${id}`)).json();
+    return d.status === "DIVERGENT" && d.divergences.length === 3 ? d : undefined;
+  });
+  assert(indexedDivergent.quorumReached === false, "indexer: DIVERGENT, 3 divergences, quorum revoked — agrees with the chain");
+  const feed = await (await fetch(`${INDEXER}/divergences`)).json();
+  assert(feed.items.length === 3 && feed.items.every((i) => i.observedDigest === [...observed][0]), "indexer: divergence feed lists all three reports");
+
+  step("indexer restart");
+  const logBefore = children.find((c) => c.child === indexerProc)?.log() ?? "";
+  killTree(indexerProc);
+  await waitFor("indexer to stop", async () => !(await portOpen(4100)));
+  indexerProc = startIndexer();
+  await waitFor("indexer API after restart", async () => (await fetch(`${INDEXER}/health`)).ok);
+  const restarted = await waitFor("indexer to catch up after restart", async () => {
+    const st = await (await fetch(`${INDEXER}/stats`)).json();
+    return st.divergent === 1 && st.totalAttestations === 5 ? st : undefined;
+  });
+  assert(restarted.indexerLag === 0, "indexer: same state after restart (5 attestations, 1 divergent, lag 0)");
+  await sleep(500);
+  const logAfter = children.find((c) => c.child === indexerProc)?.log() ?? "";
+  if (MONGO_URI) {
+    assert(!/rebuilding index/.test(logAfter), "indexer: resumed from its MongoDB checkpoint (no rebuild)");
+  } else {
+    assert(/rebuilding index/.test(logAfter) && logBefore.length > 0, "indexer: in-memory store rebuilt from chain events on restart");
+  }
 
   step("ACT 5a — existing lockfile: blocked");
   v = cairn(["verify", "--lockfile", CONSUMER_LOCK]);

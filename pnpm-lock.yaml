@@ -306,6 +306,9 @@ importers:
       '@cairn/config':
         specifier: workspace:*
         version: link:../config
+      '@cairn/core':
+        specifier: workspace:*
+        version: link:../core
       '@nomicfoundation/hardhat-node-test-runner':
         specifier: 3.1.2
         version: 3.1.2(hardhat@3.22.0)

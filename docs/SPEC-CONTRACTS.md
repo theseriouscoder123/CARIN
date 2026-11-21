@@ -100,6 +100,9 @@ error AlreadyCorroborated(bytes32 packageId, address attester);
 error PublisherCannotCorroborate();
 error ZeroDigest();
 error NonceMismatch(uint256 expected, uint256 provided);
+error PackageIdMismatch(bytes32 provided, bytes32 expected);   // added in-window
+error DivergenceAlreadyReported(bytes32 packageId, address attester); // added in-window
+error ZeroAddress();                                           // added in-window
 ```
 
 ### 2.5 Functions
@@ -116,16 +119,24 @@ function submit(
     bytes32 artifactDigest,
     bytes32 tarballHash,
     bytes32 payloadDigest,
+    address publisher,          // added in-window, see note below
     uint256 nonce,
     bytes calldata signature
 ) external;
 ```
 
-Checks, in order: digests non-zero → no existing record → nonce matches signer's current
-nonce → recover signer → increment nonce → write record → emit.
+Checks, in order: digests non-zero → `packageId` binding → no existing record → nonce
+matches `nonceOf(publisher)` → recovered signer equals `publisher` → increment nonce →
+write record → emit.
 
-The signer is recovered from the signature, so the submitting account need not be the
-publisher. This matters: it lets a CI job relay a signature produced by an offline key.
+The submitting account need not be the publisher. This matters: it lets a CI job relay a
+signature produced by an offline key.
+
+> **In-window change — explicit `publisher`.** Without it, a tampered signature simply
+> recovers to *some* address and the record is filed under that address; there is no way
+> to reject it, and the nonce check is meaningless because it is evaluated against an
+> arbitrary recovered key. Naming the publisher makes "tampered signature → revert
+> `InvalidSignature`" deterministic and makes the relay's intent explicit.
 
 ```solidity
 /// @notice Co-sign an existing attestation after independently re-fetching the artifact.
@@ -141,12 +152,23 @@ If it differs: append to `_divergences`, emit `DivergenceReported`. **Do not** i
 corroborations, and **do not** revert — the divergence must be recorded on-chain, which is
 the entire point. Reverting would discard the evidence.
 
+An attester that corroborated earlier **may** later report a divergence — that is exactly
+the post-attestation republication the Divergence Monitor exists to catch. Each attester
+reports divergence at most once per package (`DivergenceAlreadyReported`), so a looping
+monitor cannot spam the array.
+
 ```solidity
 function getAttestation(bytes32 packageId) external view returns (Attestation memory);
 function getDivergences(bytes32 packageId) external view returns (Divergence[] memory);
 function hasQuorum(bytes32 packageId) external view returns (bool);
 function nonceOf(address publisher) external view returns (uint256);
+function exists(bytes32 packageId) external view returns (bool);                 // added
+function hasCorroborated(bytes32 packageId, address attester) external view returns (bool); // added
+function domainSeparator() external view returns (bytes32);                      // added
 ```
+
+`getAttestation` on an unknown id returns a zeroed struct (`submittedAt == 0`) rather than
+reverting, so `verify` can classify UNATTESTED without try/catch.
 
 `hasQuorum` returns `false` when any divergence is recorded, regardless of corroboration
 count. A contested artifact never reaches quorum. This is a one-line rule with large
@@ -174,8 +196,10 @@ uint32 private _threshold;          // M
 address public immutable admin;
 ```
 
+- Constructor: `QuorumPolicy(admin, address[] initialAttesters, uint32 threshold)` —
+  set and validated atomically, so there is never a deployed policy with M > N.
 - `addAttester(address)` / `removeAttester(address)` / `setThreshold(uint32)`, all
-  `onlyAdmin`.
+  `onlyAdmin`. `removeAttester` reverts if it would leave N < M.
 - `setThreshold` reverts if `_threshold == 0` or `_threshold > _attesterCount`.
 - Emits `AttesterAdded`, `AttesterRemoved`, `ThresholdChanged`.
 

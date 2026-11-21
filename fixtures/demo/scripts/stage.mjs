@@ -63,6 +63,9 @@ const version = readDemoVersion();
 const spec = `${PKG}@${version}`;
 const packageId = core.packageId("npm", PKG, version);
 console.log(`  ${c.green("✓")} ready: ${c.bold(spec)}  ${c.dim(packageId)}`);
+console.log(`
+  ${c.bold("Open on the projector now:")} ${c.cyan(`${dashboard}/live?spec=${encodeURIComponent(spec)}`)}`);
+console.log(c.dim("  (it reads the chain directly and will show every state of this release as it happens)"));
 
 // ── 1. attest ─────────────────────────────────────────────────────────────────────────
 await beat(1, "Attest", "the maintainer signs a digest of the release and anchors it on-chain");
@@ -130,7 +133,7 @@ if (REHEARSE) {
 
 // ── 7. proof ──────────────────────────────────────────────────────────────────────────
 await beat(7, "Proof", "everything above is public and independently checkable");
-console.log(`  live view   ${c.cyan(`${dashboard}/live`)}`);
+console.log(`  live view   ${c.cyan(`${dashboard}/live?spec=${encodeURIComponent(spec)}`)}`);
 console.log(`  package     ${c.cyan(`${dashboard}/packages/${packageId}`)}`);
 if (chainId === 84532) console.log(`  on-chain    ${c.cyan(`https://sepolia.basescan.org/address/${address}`)}`);
 console.log(`  CI gate     ${c.cyan("uses: theseriouscoder123/CARIN@v1")}`);

@@ -1,4 +1,5 @@
 "use client";
+import { packageId as computePackageId } from "@cairn/core/identity";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { chainStatus, hasCorroborated, readRecord, type ChainRecord } from "@/lib/chain";
@@ -23,9 +24,27 @@ type TileState = "waiting" | "corroborated" | "diverged";
  * verdict flipping when a republication is caught.
  */
 export default function LivePage() {
+  // ?spec=name@version pins a package by identity, computed here in the browser — so the
+  // stage can open the page BEFORE publishing and watch every state, with no indexer lag.
+  // ?pkg=<packageId> pins by id.
   const [pinned, setPinned] = useState<Hex | undefined>();
+  const [pinnedSpec, setPinnedSpec] = useState<{ name: string; version: string } | undefined>();
   useEffect(() => {
-    const q = new URLSearchParams(window.location.search).get("pkg");
+    const params = new URLSearchParams(window.location.search);
+    const spec = params.get("spec");
+    if (spec && spec.lastIndexOf("@") > 0) {
+      const at = spec.lastIndexOf("@");
+      const name = spec.slice(0, at);
+      const version = spec.slice(at + 1);
+      try {
+        setPinned(computePackageId("npm", name, version).toLowerCase() as Hex);
+        setPinnedSpec({ name, version });
+        return;
+      } catch {
+        // fall through to ?pkg / follow mode
+      }
+    }
+    const q = params.get("pkg");
     if (q && /^0x[0-9a-fA-F]{64}$/.test(q)) setPinned(q.toLowerCase() as Hex);
   }, []);
 
@@ -36,7 +55,11 @@ export default function LivePage() {
   const submitted = (feed.data?.items ?? []).filter((e) => e.type === "AttestationSubmitted" && e.packageId);
   const target =
     pinned !== undefined
-      ? { packageId: pinned, name: submitted.find((e) => e.packageId === pinned)?.name ?? null, version: submitted.find((e) => e.packageId === pinned)?.version ?? null }
+      ? {
+          packageId: pinned,
+          name: pinnedSpec?.name ?? submitted.find((e) => e.packageId === pinned)?.name ?? null,
+          version: pinnedSpec?.version ?? submitted.find((e) => e.packageId === pinned)?.version ?? null
+        }
       : (submitted.find((e) => e.name?.startsWith("@cairn-demo/")) ?? submitted[0]);
   const packageId = target?.packageId;
   const registry = REGISTRY_ADDR ?? health.data?.registry;

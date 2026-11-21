@@ -17,6 +17,8 @@ export const DeploymentSchema = z.object({
   deployedAtBlock: z.number().int().nonnegative(),
   deployer: address,
   attesters: z.array(address),
+  /** Optional display names, address → label, for dashboards that cannot reach /health. */
+  attesterLabels: z.record(z.string(), z.string().max(32)).optional(),
   threshold: z.number().int().positive(),
   abiHash: z.string(),
   deployedAt: z.string()

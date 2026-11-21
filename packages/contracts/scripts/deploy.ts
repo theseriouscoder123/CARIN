@@ -48,6 +48,7 @@ const deployment = {
   deployedAtBlock: Number(firstBlock),
   deployer: deployer.account.address,
   attesters,
+  attesterLabels: Object.fromEntries(attesters.map((a, i) => [a, `attester-${"abcdefghij"[i] ?? i}`])),
   threshold,
   abiHash: keccak256(stringToBytes(JSON.stringify(registry.abi))),
   deployedAt: new Date().toISOString()

@@ -23,6 +23,8 @@ export interface ApiDeps {
   ingester: Pick<Ingester, "headBlock" | "lastIndexedBlock">;
   /** Live attester /health snapshots; failures are reported as offline, never invented. */
   attesterHealth: () => Promise<{ url: string; health?: AttesterHealth; error?: string }[]>;
+  /** Display labels from the deployment file, keyed by lowercase address. */
+  attesterLabels?: Record<string, string>;
   corsOrigins: string[];
   lagThreshold: number;
   /** Where this index comes from, so a client can read the same contract itself. */
@@ -186,7 +188,7 @@ export function createApi(deps: ApiDeps): Express {
         const h = byAddr.get(key);
         return {
           address,
-          label: h?.health?.label ?? null,
+          label: h?.health?.label ?? deps.attesterLabels?.[key] ?? null,
           active: true,
           online: h !== undefined,
           corroborationCount: stat(key, "AttesterCorroborated"),

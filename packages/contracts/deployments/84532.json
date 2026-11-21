@@ -9,6 +9,11 @@
     "0xa76CE4594bE2B342fBcF73204523ff39B8a097b7",
     "0x4074eA0f2C2a5AA24979aA0CE09f672B9C51969c"
   ],
+  "attesterLabels": {
+    "0xbC41A82a5bB0C00FCfA516FDC61Bc355b20195fa": "attester-a",
+    "0xa76CE4594bE2B342fBcF73204523ff39B8a097b7": "attester-b",
+    "0x4074eA0f2C2a5AA24979aA0CE09f672B9C51969c": "attester-c"
+  },
   "threshold": 2,
   "abiHash": "0x6c9fe54b47a73a754fd81a7fc7fc3a01d10f18712026953a365e2d5c572db2a1",
   "deployedAt": "2026-11-21T14:31:50.465Z"

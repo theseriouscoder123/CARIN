@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "hardhat": "hardhat",
-    "build": "hardhat compile",
+    "build": "hardhat compile && node scripts/export-abi.mjs",
     "test": "hardhat test",
     "typecheck": "hardhat compile --quiet && tsc --noEmit",
     "lint": "eslint --no-error-on-unmatched-pattern test scripts",

@@ -404,3 +404,12 @@ describe("immutability", () => {
     assert.deepEqual(found, []);
   });
 });
+
+describe("ABI parity with @cairn/core", () => {
+  it("the ABI committed in @cairn/core equals the compiled ABI", async () => {
+    const { registry, policy } = await deploy();
+    const { attestationRegistryAbi, quorumPolicyAbi } = await import("@cairn/core");
+    assert.deepEqual(attestationRegistryAbi, registry.abi);
+    assert.deepEqual(quorumPolicyAbi, policy.abi);
+  });
+});

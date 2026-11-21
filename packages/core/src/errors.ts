@@ -59,3 +59,43 @@ export class NotImplementedError extends CairnError {
     super("NOT_IMPLEMENTED", `${what} is not implemented yet`);
   }
 }
+
+/** The chain could not be reached or returned an unusable answer. Gates fail closed. */
+export class ChainUnavailableError extends CairnError {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super("CHAIN_UNAVAILABLE", message, options);
+  }
+}
+
+/** The package registry failed, or returned something that does not validate. */
+export class RegistryError extends CairnError {
+  readonly status: number | undefined;
+  readonly notFound: boolean;
+
+  constructor(message: string, opts: { status?: number; cause?: unknown } = {}) {
+    super("REGISTRY", message, { cause: opts.cause });
+    this.status = opts.status;
+    this.notFound = opts.status === 404;
+  }
+}
+
+/** Missing or invalid configuration (env, flags, deployment file). */
+export class ConfigError extends CairnError {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super("CONFIG", message, options);
+  }
+}
+
+/** A package manifest (package.json inside the artifact) is missing or invalid. */
+export class ManifestError extends CairnError {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super("MANIFEST", message, options);
+  }
+}
+
+/** A transaction was sent but reverted, or could not be sent. */
+export class TransactionError extends CairnError {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super("TRANSACTION", message, options);
+  }
+}

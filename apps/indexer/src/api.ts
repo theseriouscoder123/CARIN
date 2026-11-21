@@ -25,6 +25,8 @@ export interface ApiDeps {
   attesterHealth: () => Promise<{ url: string; health?: AttesterHealth; error?: string }[]>;
   corsOrigins: string[];
   lagThreshold: number;
+  /** Where this index comes from, so a client can read the same contract itself. */
+  chain: { chainId: number; registry: Address };
   log?: (line: string) => void;
 }
 
@@ -102,6 +104,8 @@ export function createApi(deps: ApiDeps): Express {
         lastIndexedBlock: deps.ingester.lastIndexedBlock,
         lag,
         store: deps.store.kind,
+        chainId: deps.chain.chainId,
+        registry: deps.chain.registry,
         mongo: deps.store.kind === "mongo" ? (mongo ? "up" : "down") : "not configured (in-memory store, rebuilt from chain on start)",
         asOfBlock: asOf()
       });

@@ -11,9 +11,11 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@cairn/core": "workspace:*",
     "next": "16.4.6",
     "react": "19.3.1",
-    "react-dom": "19.3.1"
+    "react-dom": "19.3.1",
+    "viem": "2.57.20"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.3.5",

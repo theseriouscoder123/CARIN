@@ -59,6 +59,7 @@ async function main(): Promise<void> {
     ingester,
     corsOrigins: config.corsOrigins,
     lagThreshold: config.lagThreshold,
+    chain: { chainId, registry: address },
     attesterHealth: async () => {
       if (!healthCache || Date.now() - healthCache.at > 2000) healthCache = { at: Date.now(), value: await pollAttesters() };
       return healthCache.value;

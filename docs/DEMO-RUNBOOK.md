@@ -41,9 +41,19 @@ pnpm registry:up                 # :4873, state in .cairn/verdaccio (pnpm regist
 pnpm deploy:local && pnpm seed:local
 pnpm attesters:demo              # three OS processes, three keys, ports 4001-4003
 
-# terminal 4 — indexer + dashboard
+# terminal 4 — indexer (:4100) + dashboard (:3000)
 pnpm dev
 ```
+
+Pin the registry for the dashboard so package pages verify against the chain independently
+of the indexer: copy `apps/web/.env.example` to `apps/web/.env.local` and set
+`NEXT_PUBLIC_REGISTRY_ADDR` to the `registry` value in
+`packages/contracts/deployments/31337.json` (deterministic on a fresh Hardhat node).
+
+Without `MONGODB_URI` the indexer uses an in-memory store and rebuilds everything from chain
+events in seconds on start — a live demonstration that it is a cache, not an authority.
+`pnpm dev` keeps the dashboard up if the indexer dies; the dashboard then shows a red
+"indexer unreachable" banner and package pages keep reading the chain directly.
 
 **Rehearse the whole path unattended first:** with the stack *stopped*, run
 `pnpm test:integration`. It cold-starts everything, runs every act below with assertions,

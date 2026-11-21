@@ -167,6 +167,7 @@ async function api(opts: { head?: number; last?: number; lagThreshold?: number }
     ingester: ing,
     corsOrigins: ["http://localhost:3000"],
     lagThreshold: opts.lagThreshold ?? 50,
+    chain: { chainId: 31337, registry: REGISTRY },
     attesterHealth: async () => [
       { url: "http://a", health: { label: "attester-a", address: A, lastProcessedBlock: 6, processedCount: 2, divergencesReported: 0, registryReachable: true, chainReachable: true, uptimeSeconds: 5 } },
       { url: "http://b", error: "ECONNREFUSED" }

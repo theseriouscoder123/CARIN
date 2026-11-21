@@ -5,7 +5,7 @@ import { z } from "zod";
 import type { Ingester } from "./ingest.js";
 import { projectPolicy } from "./projection.js";
 import type { IndexStore } from "./store.js";
-import type { IndexedEvent } from "./types.js";
+import type { AttestationDoc, IndexedEvent } from "./types.js";
 
 export interface AttesterHealth {
   label: string;
@@ -55,6 +55,54 @@ const ListQuery = z.object({
 });
 const LookupQuery = z.object({ name: z.string().min(1).max(214), version: z.string().min(1).max(64) });
 const FeedQuery = z.object({ limit: z.coerce.number().int().min(1).max(200).default(50) });
+const NamesQuery = z.object({ q: z.string().max(214).optional(), limit: z.coerce.number().int().min(1).max(100).default(25) });
+const NameQuery = z.object({ name: z.string().min(1).max(214) });
+
+/** Semver order (prereleases sort before their release); falls back to string order. */
+export function compareSemver(a: string, b: string): number {
+  const parse = (v: string) => {
+    const [core = "", pre] = v.split("+")[0]!.split("-", 2) as [string, string | undefined];
+    return { nums: core.split(".").map((n) => Number.parseInt(n, 10) || 0), pre };
+  };
+  const x = parse(a);
+  const y = parse(b);
+  for (let i = 0; i < 3; i++) {
+    const d = (x.nums[i] ?? 0) - (y.nums[i] ?? 0);
+    if (d !== 0) return d;
+  }
+  if (x.pre === y.pre) return 0;
+  if (x.pre === undefined) return 1;
+  if (y.pre === undefined) return -1;
+  return x.pre < y.pre ? -1 : 1;
+}
+
+const STATUS_RANK: Record<string, number> = { DIVERGENT: 3, PENDING: 2, VERIFIED: 1 };
+
+/** One row per package name: latest version, counts, worst status. */
+export function groupByName(docs: AttestationDoc[]) {
+  const by = new Map<string, AttestationDoc[]>();
+  for (const d of docs) by.set(d.name, [...(by.get(d.name) ?? []), d]);
+  return [...by.entries()].map(([name, vs]) => {
+    const sorted = [...vs].sort((a, b) => compareSemver(b.version, a.version));
+    const latest = sorted[0]!;
+    const worst = sorted.reduce((w, v) => ((STATUS_RANK[v.status] ?? 0) > (STATUS_RANK[w] ?? 0) ? v.status : w), "VERIFIED" as AttestationDoc["status"]);
+    return {
+      name,
+      ecosystem: latest.ecosystem,
+      latestVersion: latest.version,
+      latestPackageId: latest._id,
+      latestStatus: latest.status,
+      worstStatus: worst,
+      versionCount: sorted.length,
+      verified: sorted.filter((v) => v.status === "VERIFIED").length,
+      pending: sorted.filter((v) => v.status === "PENDING").length,
+      divergent: sorted.filter((v) => v.status === "DIVERGENT").length,
+      publisher: latest.publisher,
+      lastActivityBlock: Math.max(...sorted.map((v) => v.lastActivityBlock)),
+      lastSubmittedAt: sorted.reduce((m, v) => (v.submittedAt > m ? v.submittedAt : m), "")
+    };
+  });
+}
 
 function parse<T>(schema: z.ZodType<T>, input: unknown): T {
   const r = schema.safeParse(input);
@@ -305,6 +353,43 @@ export function createApi(deps: ApiDeps): Express {
         })
       );
       res.json({ items, asOfBlock: asOf() });
+    })
+  );
+
+  v1.get(
+    "/names",
+    route(async (req, res) => {
+      const { q, limit } = parse(NamesQuery, req.query);
+      const docs = await deps.store.searchByName(q, 5000);
+      const groups = groupByName(docs);
+      const needle = q?.toLowerCase();
+      groups.sort(
+        (a, b) =>
+          Number(b.name.toLowerCase() === needle) - Number(a.name.toLowerCase() === needle) ||
+          b.lastActivityBlock - a.lastActivityBlock ||
+          (a.name < b.name ? -1 : 1)
+      );
+      res.json({ items: groups.slice(0, limit), total: groups.length, asOfBlock: asOf() });
+    })
+  );
+
+  v1.get(
+    "/name",
+    route(async (req, res) => {
+      const { name } = parse(NameQuery, req.query);
+      const versions = (await deps.store.findByName(name)).sort((a, b) => compareSemver(b.version, a.version));
+      if (versions.length === 0) throw new HttpError(404, "NOT_FOUND", `no attested versions of ${name}`);
+      const [group] = groupByName(versions);
+      const claims = await deps.store.eventsOfTypes(["PackageNameClaimed"]);
+      const claim = claims.find((e) => e.data.name === name);
+      res.json({
+        ...group,
+        pinnedPublisher: claim?.actor ?? versions[versions.length - 1]?.publisher ?? null,
+        pinnedAt: claim?.timestamp ?? null,
+        firstAttestedAt: versions.reduce((min, v) => (v.submittedAt < min ? v.submittedAt : min), versions[0]?.submittedAt ?? ""),
+        versions,
+        asOfBlock: asOf()
+      });
     })
   );
 

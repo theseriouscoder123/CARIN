@@ -22,6 +22,10 @@ export interface IndexStore {
   getAttestation(packageId: Hex): Promise<AttestationDoc | undefined>;
   findByNameVersion(name: string, version: string): Promise<AttestationDoc | undefined>;
   listAttestations(q: ListQuery): Promise<AttestationDoc[]>;
+  /** Every attested version of one package name. */
+  findByName(name: string): Promise<AttestationDoc[]>;
+  /** All attestations whose name contains `q` (case-insensitive), capped. */
+  searchByName(q: string | undefined, cap: number): Promise<AttestationDoc[]>;
   counts(): Promise<{ total: number; verified: number; pending: number; divergent: number }>;
   reset(): Promise<void>;
 }
@@ -94,6 +98,13 @@ export class MemoryStore implements IndexStore {
       .sort(listingOrder)
       .filter((d) => (q.cursor === undefined ? true : d.lastActivityBlock < q.cursor))
       .slice(0, q.limit);
+  }
+  async findByName(name: string) {
+    return [...this.attestations.values()].filter((d) => d.name === name);
+  }
+  async searchByName(q: string | undefined, cap: number) {
+    const needle = q?.toLowerCase();
+    return [...this.attestations.values()].filter((d) => (needle ? d.name.toLowerCase().includes(needle) : true)).slice(0, cap);
   }
   async counts() {
     const all = [...this.attestations.values()];

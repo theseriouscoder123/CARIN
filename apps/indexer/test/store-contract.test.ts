@@ -106,6 +106,9 @@ describe.each(factories)("%s", (_name, make, enabled) => {
     expect((await s.listAttestations({ limit: 10, q: "a.b(" })).length).toBe(0); // regex-special input is literal
     expect(await s.counts()).toEqual({ total: 2, verified: 1, pending: 0, divergent: 1 });
 
+    expect((await s.findByName("left-pad")).map((d) => d._id)).toEqual([P1]);
+    expect((await s.searchByName("GREET", 10)).map((d) => d._id)).toEqual([P2]);
+    expect((await s.searchByName(undefined, 10)).length).toBe(2);
     await s.deleteAttestation(P1);
     expect(await s.getAttestation(P1)).toBeUndefined();
   });

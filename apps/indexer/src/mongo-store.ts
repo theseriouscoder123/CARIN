@@ -6,7 +6,10 @@ import type { AttestationDoc, EventType, IndexMeta, IndexedEvent, ListQuery } fr
 type EventDoc = Omit<IndexedEvent, "id"> & { _id: string };
 type MetaDoc = IndexMeta & { _id: "meta" };
 
-const fromDoc = ({ _id, ...rest }: EventDoc): IndexedEvent => ({ id: _id, ...rest });
+/** User search text is matched literally, never interpreted as a regular expression. */
+const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const fromDoc =({ _id, ...rest }: EventDoc): IndexedEvent => ({ id: _id, ...rest });
 
 /** MongoDB store (SPEC-INDEXER-API §2). Atlas in deployment, Docker locally. */
 export class MongoStore implements IndexStore {
@@ -37,6 +40,7 @@ export class MongoStore implements IndexStore {
   private async ensureIndexes() {
     await Promise.all([
       this.attestations.createIndex({ name: 1, version: 1 }),
+      this.attestations.createIndex({ name: 1, lastActivityBlock: -1 }),
       this.attestations.createIndex({ submittedAt: -1 }),
       this.attestations.createIndex({ quorumReached: 1 }),
       this.attestations.createIndex({ divergenceCount: -1 }),
@@ -115,7 +119,7 @@ export class MongoStore implements IndexStore {
 
   async listAttestations(q: ListQuery) {
     const filter: Record<string, unknown> = {};
-    if (q.q) filter.name = { $regex: q.q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
+    if (q.q) filter.name = { $regex: escapeRegex(q.q), $options: "i" };
     if (q.status) filter.status = q.status;
     if (q.cursor !== undefined) filter.lastActivityBlock = { $lt: q.cursor };
     const docs = await this.attestations.find(filter).sort({ lastActivityBlock: -1, _id: 1 }).limit(q.limit).toArray();
@@ -126,6 +130,15 @@ export class MongoStore implements IndexStore {
       return [...divergent, ...docs.filter((d) => !ids.has(d._id))].slice(0, q.limit);
     }
     return docs;
+  }
+
+  async findByName(name: string) {
+    return this.attestations.find({ name }).toArray();
+  }
+
+  async searchByName(q: string | undefined, cap: number) {
+    const filter = q ? { name: { $regex: escapeRegex(q), $options: "i" } } : {};
+    return this.attestations.find(filter).sort({ lastActivityBlock: -1 }).limit(cap).toArray();
   }
 
   async counts() {

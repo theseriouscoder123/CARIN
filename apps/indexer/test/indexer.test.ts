@@ -3,7 +3,7 @@ import type { Server } from "node:http";
 import { packageId } from "@cairn/core";
 import type { Address, Hex } from "viem";
 import { afterEach, describe, expect, it } from "vitest";
-import { createApi } from "../src/api.js";
+import { compareSemver, createApi, groupByName } from "../src/api.js";
 import { Ingester, type ChainSource } from "../src/ingest.js";
 import { projectAttestation } from "../src/projection.js";
 import { MemoryStore } from "../src/store.js";
@@ -261,6 +261,24 @@ describe("API", () => {
     expect(body.items[0]).toMatchObject({ name: "@cairn-demo/greeting", version: "1.0.0" });
   });
 
+  it("/names groups versions under one row per package, exact match first", async () => {
+    const get = await api();
+    const body = await json(await get("/names?q=left"));
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0]).toMatchObject({ name: "left-pad", latestVersion: "1.3.0", versionCount: 1, verified: 1, worstStatus: "VERIFIED" });
+    const all = await json(await get("/names"));
+    expect(all.items.map((g: { name: string }) => g.name).sort()).toEqual(["@cairn-demo/greeting", "left-pad"]);
+  });
+
+  it("/name returns every version, name-level facts and 404 for unknown names", async () => {
+    const get = await api();
+    const body = await json(await get(`/name?name=${encodeURIComponent("@cairn-demo/greeting")}`));
+    expect(body).toMatchObject({ name: "@cairn-demo/greeting", versionCount: 1, divergent: 1, worstStatus: "DIVERGENT" });
+    expect(body.versions[0]).toMatchObject({ version: "1.0.0", status: "DIVERGENT" });
+    expect((await get("/name?name=nope")).status).toBe(404);
+    expect((await get("/name")).status).toBe(400);
+  });
+
   it("/lookup resolves a name to its packageId and indexed status", async () => {
     const get = await api();
     expect(await json(await get("/lookup?name=left-pad&version=1.3.0"))).toMatchObject({ packageId: PKG2, indexed: true, status: "VERIFIED" });
@@ -345,5 +363,19 @@ describe("provider log-range caps", () => {
       throw new Error("rpc down");
     };
     await expect(new Ingester(chain, store, { startBlock: 1, chunk: 64 }).tick()).rejects.toThrow("rpc down");
+  });
+});
+
+describe("semver ordering and grouping", () => {
+  it("orders versions numerically with prereleases before releases", () => {
+    const vs = ["1.10.0", "1.2.0", "1.2.0-beta.1", "2.0.0", "1.2.1"];
+    expect([...vs].sort(compareSemver)).toEqual(["1.2.0-beta.1", "1.2.0", "1.2.1", "1.10.0", "2.0.0"]);
+  });
+
+  it("a name with any divergent version reports DIVERGENT as its worst status", () => {
+    const base = projectAttestation([submitted(PKG2, "left-pad", 2), corroborated(PKG2, A, 2, true, 3)])!;
+    const v2 = { ...base, _id: PKG as Hex, version: "1.4.0", status: "DIVERGENT" as const, divergenceCount: 1 };
+    const [g] = groupByName([base, v2]);
+    expect(g).toMatchObject({ name: "left-pad", latestVersion: "1.4.0", versionCount: 2, verified: 1, divergent: 1, worstStatus: "DIVERGENT" });
   });
 });

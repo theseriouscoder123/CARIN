@@ -1,25 +1,97 @@
 #!/usr/bin/env node
-import { Command } from "commander";
-import { NotImplementedError } from "@cairn/core";
+import { CairnError } from "@cairn/core";
+import { Command, Option } from "commander";
+import { defaultPublishDeps, runPublish } from "./commands/publish.js";
+import { defaultRegistryUrl, defaultRpcUrl, payloadDir, type GlobalOptions } from "./config.js";
+import { loadAccount } from "./keys.js";
+import { renderPublish } from "./render/publish.js";
+import { createStyle, shouldColor } from "./render/style.js";
+
+/** SPEC-CLI §3.3: 0 ok · 1 gate fired · 2 operational error. */
+export const EXIT = { OK: 0, POLICY: 1, OPERATIONAL: 2 } as const;
 
 const program = new Command()
   .name("cairn")
   .description("Quorum-verified provenance for npm dependencies")
-  .version("0.1.0");
+  .version("0.1.0")
+  .option("--rpc-url <url>", "chain RPC endpoint (env CAIRN_RPC_URL)", defaultRpcUrl())
+  .option("--registry-url <url>", "npm registry (env CAIRN_REGISTRY_URL)", defaultRegistryUrl())
+  .option("--contract <address>", "AttestationRegistry address (env CAIRN_REGISTRY_ADDR)")
+  .option("--deployment <file>", "deployment JSON (env CAIRN_DEPLOYMENT_FILE)")
+  .option("--json", "machine-readable output on stdout only", false)
+  .option("--no-color", "disable colour")
+  .option("-v, --verbose", "more diagnostics on stderr (repeatable)", (_v, n: number) => n + 1, 0)
+  .showHelpAfterError();
+
+function globals(): GlobalOptions {
+  const o = program.opts<{
+    rpcUrl: string;
+    registryUrl: string;
+    contract?: string;
+    deployment?: string;
+    json: boolean;
+    color: boolean;
+    verbose: number;
+  }>();
+  return { ...o, color: !o.json && shouldColor(o.color) };
+}
+
+function emit(g: GlobalOptions, result: unknown, human: string): void {
+  process.stdout.write(g.json ? `${JSON.stringify(result, null, 2)}\n` : `${human}\n`);
+}
 
 program
   .command("publish")
   .description("Digest, sign and submit an attestation for a release")
   .argument("[tarball]", "path to a local .tgz")
-  .action(() => {
-    throw new NotImplementedError("cairn publish");
+  .option("--package <name@version>", "resolve and fetch from the registry instead of a local file")
+  .option("--key <hex>", "signing key (prefer env CAIRN_PRIVATE_KEY)")
+  .addOption(new Option("--payload-store <target>", "where the full payload is stored").choices(["local"]).default("local"))
+  .option("--dry-run", "compute and print, submit nothing", false)
+  .action(async (tarball: string | undefined, o: { package?: string; key?: string; dryRun: boolean }) => {
+    const g = globals();
+    const result = await runPublish(
+      {
+        tarball,
+        package: o.package,
+        account: loadAccount(o.key),
+        dryRun: o.dryRun,
+        rpcUrl: g.rpcUrl,
+        contract: g.contract,
+        deployment: g.deployment
+      },
+      defaultPublishDeps(g.registryUrl, payloadDir())
+    );
+    emit(g, result, renderPublish(result, createStyle(g.color)));
   });
 
 program
   .command("verify")
   .description("Verify every dependency in an npm lockfile against on-chain quorum")
   .action(() => {
-    throw new NotImplementedError("cairn verify");
+    throw new CairnError("NOT_IMPLEMENTED", "cairn verify lands in the next milestone");
   });
 
-await program.parseAsync(process.argv);
+// `pnpm --filter @cairn/cli dev -- publish …` forwards the literal "--"; drop it.
+const argv = process.argv[2] === "--" ? [...process.argv.slice(0, 2), ...process.argv.slice(3)] : process.argv;
+
+try {
+  await program.parseAsync(argv);
+} catch (err) {
+  const g = globals();
+  const message = err instanceof Error ? err.message : String(err);
+  const code = err instanceof CairnError ? err.code : "UNEXPECTED";
+  if (g.json) {
+    process.stdout.write(`${JSON.stringify({ error: { code, message } }, null, 2)}\n`);
+  } else {
+    process.stderr.write(`\n  ${createStyle(shouldColor(g.color, process.stderr)).red("✗")} ${message}\n\n`);
+  }
+  if (g.verbose > 0 && err instanceof Error) {
+    let cause: unknown = err.cause;
+    while (cause instanceof Error) {
+      process.stderr.write(`    caused by: ${cause.message.split("\n")[0]}\n`);
+      cause = cause.cause;
+    }
+  }
+  process.exitCode = EXIT.OPERATIONAL;
+}

@@ -13,3 +13,6 @@ export function ago(iso: string | null | undefined): string {
 }
 
 export const same = (a?: string | null, b?: string | null): boolean => !!a && !!b && a.toLowerCase() === b.toLowerCase();
+
+const CHAINS: Record<number, string> = { 84532: "Base Sepolia", 8453: "Base", 31337: "Hardhat local", 11155111: "Sepolia" };
+export const chainName = (id: number): string => CHAINS[id] ?? `chain ${id}`;

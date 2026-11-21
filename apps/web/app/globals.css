@@ -1,9 +1,100 @@
 @import "tailwindcss";
 
+/* "Open Registry Engine" design tokens (docs/design/STITCH-BRIEF.md). */
+@theme {
+  --color-nav: #132030;
+  --color-nav-2: #1b2a3c;
+  --color-nav-line: #223344;
+  --color-canvas: #f8f9fa;
+  --color-card: #ffffff;
+  --color-line: #e1e7ec;
+  --color-line-strong: #cfd8dc;
+  --color-code: #f1f4f7;
+  --color-hover: #fbfcfd;
+  --color-ink: #0f1d27;
+  --color-ink-2: #404751;
+  --color-muted: #596773;
+  --color-primary: #0175c2;
+  --color-primary-hover: #0163a3;
+  --color-primary-soft: #eef4f9;
+  --color-teal: #13b9a5;
+  --color-teal-ink: #006559;
+  --color-ok: #0f9d58;
+  --color-ok-ink: #0b7a44;
+  --color-ok-soft: #e7f6ee;
+  --color-warn: #d97706;
+  --color-warn-ink: #9a5404;
+  --color-warn-soft: #fdf3e3;
+  --color-bad: #cf3838;
+  --color-bad-ink: #a52626;
+  --color-bad-soft: #fdecec;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  --shadow-pop: 0 4px 12px rgba(19, 32, 48, 0.08);
+}
+
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 body {
-  @apply bg-neutral-950 text-neutral-100 antialiased;
+  @apply bg-canvas text-ink antialiased;
+  font-size: 14px;
+  line-height: 22px;
+}
+
+::selection {
+  background: #d1e4ff;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded px-4 py-2 text-sm font-semibold whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+}
+@utility btn-primary {
+  @apply btn bg-primary text-white hover:bg-primary-hover;
+}
+@utility btn-outline {
+  @apply btn border border-line-strong bg-white text-nav hover:bg-code;
+}
+@utility input {
+  @apply rounded border border-line-strong bg-white px-3 py-2 text-sm text-ink outline-none placeholder:text-muted/70 focus:border-primary focus:ring-1 focus:ring-primary;
+}
+@utility link {
+  @apply text-primary hover:underline;
+}
+@utility label {
+  @apply text-xs font-semibold tracking-wide text-muted uppercase;
+}
+@utility th {
+  @apply px-4 py-2.5 text-left text-[11px] font-semibold tracking-wider whitespace-nowrap text-muted uppercase;
+}
+@utility td {
+  @apply px-4 py-3 align-middle;
+}
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+}
+
+@keyframes flash-in {
+  from {
+    background-color: #e1f0fe;
+  }
+  to {
+    background-color: transparent;
+  }
+}
+.flash {
+  animation: flash-in 3s ease-out;
+}
+.flash-bad {
+  animation: flash-in 3s ease-out;
+  background-color: var(--color-bad-soft);
 }

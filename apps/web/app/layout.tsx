@@ -1,47 +1,26 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import type { ReactNode } from "react";
-import { HealthBanner, SourceLine } from "@/components/health-banner";
+import { Footer, Header, StatusStrip } from "@/components/shell";
 import "./globals.css";
 
+// next/font downloads at build time and serves from this origin — the CSP allows font-src 'self' only.
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
+const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains", display: "swap" });
+
 export const metadata: Metadata = {
-  title: "CAIRN — transparency log",
+  title: { default: "CAIRN — transparency log for npm artifacts", template: "%s · CAIRN" },
   description: "Quorum-verified provenance for open-source dependencies"
 };
 
-const NAV = [
-  { href: "/", label: "Overview" },
-  { href: "/live", label: "Live" },
-  { href: "/packages", label: "Packages" },
-  { href: "/attesters", label: "Attesters" },
-  { href: "/verify", label: "Verify" },
-  { href: "/check", label: "Check a lockfile" },
-  { href: "/docs", label: "Docs" },
-  { href: "/about", label: "How it works" }
-];
-
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
-      <body className="min-h-screen font-sans">
-        <HealthBanner />
-        <header className="border-b border-neutral-800">
-          <nav className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-8 gap-y-2 px-6 py-4">
-            <Link href="/" className="font-mono text-2xl font-bold tracking-tight">
-              CAIRN
-            </Link>
-            {NAV.map((n) => (
-              <Link key={n.href} href={n.href} className="text-lg text-neutral-300 hover:text-white">
-                {n.label}
-              </Link>
-            ))}
-          </nav>
-        </header>
-        <main className="mx-auto max-w-7xl px-6 py-8">{children}</main>
-        <footer className="mx-auto max-w-7xl space-y-1 px-6 pb-10">
-          <SourceLine />
-          <p className="text-xs text-neutral-600">Read-only view of an append-only on-chain log. Nothing on this page is hardcoded.</p>
-        </footer>
+    <html lang="en" className={`${inter.variable} ${mono.variable}`}>
+      <body className="flex min-h-screen flex-col font-sans">
+        <Header />
+        <StatusStrip />
+        <main className="mx-auto w-full max-w-[1320px] flex-1 px-4 py-8 md:px-6">{children}</main>
+        <Footer />
       </body>
     </html>
   );

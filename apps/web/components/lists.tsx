@@ -5,7 +5,8 @@ import { ago, short } from "@/lib/format";
 import type { Attestation, AttestersResponse, DivergenceItem, Stats } from "@/lib/types";
 import { releaseHref } from "@/lib/links";
 import { indexer, refreshAll, usePoll } from "@/lib/use-poll";
-import { Card, Digest, StatusBadge, States, TxRef } from "./ui";
+import { IconAlert, IconArrowRight, IconCheck, IconX } from "./icons";
+import { Card, CopyButton, HashPill, StatusBadge, States, Tip, TxRef } from "./ui";
 
 export function statusDetail(a: Pick<Attestation, "status" | "corroborations" | "divergenceCount">, threshold?: number) {
   if (a.status === "DIVERGENT") return `${a.divergenceCount} divergence${a.divergenceCount === 1 ? "" : "s"}`;
@@ -13,35 +14,35 @@ export function statusDetail(a: Pick<Attestation, "status" | "corroborations" | 
   return `${a.corroborations} corroborations`;
 }
 
-export function StatCards() {
-  const s = usePoll<Stats>(() => indexer<Stats>("/stats"), "stats");
-  return (
-    <States state={s} what="stats" rows={1}>
-      {(d) => (
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
-          <Stat label="Attestations" value={d.totalAttestations} />
-          <Stat label="Verified" value={d.quorumReached} tone="text-emerald-300" />
-          <Stat label="Pending" value={d.pending} tone="text-amber-300" />
-          <Stat label="Divergent" value={d.divergent} tone={d.divergent > 0 ? "text-red-300" : undefined} />
-          <Stat label="Quorum" value={`${d.threshold} of ${d.activeAttesters}`} />
-        </div>
-      )}
-    </States>
-  );
+export function useStats() {
+  return usePoll<Stats>(() => indexer<Stats>("/stats"), "stats");
 }
 
-function Stat({ label, value, tone }: { label: string; value: number | string; tone?: string }) {
+/** Headline numbers for the dark hero. */
+export function HeroStats() {
+  const s = useStats();
+  const d = s.data;
+  const cell = (label: string, value: string | number | undefined, tone = "text-white", tip?: string) => (
+    <div className="rounded border border-nav-line bg-nav-2 px-4 py-3">
+      <p className="flex items-center gap-1.5 text-[11px] font-semibold tracking-wider text-slate-400 uppercase" title={tip}>
+        {label}
+      </p>
+      <p className={`mt-1 text-2xl font-semibold tabular-nums ${tone}`}>{value ?? <span className="inline-block h-7 w-12 animate-pulse rounded bg-nav-line" />}</p>
+    </div>
+  );
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900/60 p-4">
-      <p className="text-sm uppercase tracking-wide text-neutral-400">{label}</p>
-      <p className={`mt-1 text-4xl font-semibold tabular-nums ${tone ?? "text-neutral-100"}`}>{value}</p>
+    <div className="grid grid-cols-2 gap-3">
+      {cell("Attested releases", d?.totalAttestations)}
+      {cell("Quorum verified", d?.quorumReached, "text-teal", "Confirmed by a quorum of independent attesters")}
+      {cell("Divergent", d?.divergent, d && d.divergent > 0 ? "text-[#ff8a8a]" : "text-white", "Attesters observed different bytes than were attested")}
+      {cell("Quorum rule", d ? `${d.threshold} of ${d.activeAttesters}` : undefined, "text-white", "Attesters that must agree before a release counts as verified")}
     </div>
   );
 }
 
 /**
- * Red banner at the top of the overview while any package is divergent, plus a toast the
- * moment a new divergence lands — it must be impossible to miss on stage.
+ * Advisory banner while any package is divergent, plus a toast the moment a new divergence
+ * lands — it must be impossible to miss on stage.
  */
 export function DivergenceAlert() {
   const d = usePoll<{ items: DivergenceItem[] }>(() => indexer("/divergences?limit=50"), "divergences-alert");
@@ -64,35 +65,40 @@ export function DivergenceAlert() {
 
   const pkgs = new Map<string, DivergenceItem>();
   for (const i of d.data?.items ?? []) if (!pkgs.has(i.packageId)) pkgs.set(i.packageId, i);
+  const latest = [...pkgs.values()][0];
 
   return (
     <>
-      {pkgs.size > 0 ? (
-        <div role="alert" className="rounded-xl border-2 border-red-500 bg-red-950/70 p-5 shadow-[0_0_40px_-10px] shadow-red-600">
-          <p className="text-2xl font-bold text-red-100">✗ Divergence detected</p>
-          <ul className="mt-3 space-y-2">
-            {[...pkgs.values()].slice(0, 3).map((i) => (
-              <li key={i.packageId} className="text-lg text-red-100">
-                <Link href={releaseHref(i)} className="font-semibold underline decoration-red-400 underline-offset-4">
-                  {i.name}@{i.version}
-                </Link>{" "}
-                — attesters observed <span className="font-mono">{short(i.observedDigest)}</span>, attested{" "}
-                <span className="font-mono">{short(i.expectedDigest)}</span>. Quorum revoked; <span className="font-mono">cairn verify</span> blocks it.
-              </li>
-            ))}
-          </ul>
-          {pkgs.size > 3 ? (
-            <p className="mt-2 text-sm text-red-200/80">
-              +{pkgs.size - 3} earlier divergent release{pkgs.size - 3 === 1 ? "" : "s"} — the record is append-only, so every one stays visible.
-            </p>
-          ) : null}
+      {latest ? (
+        <div role="alert" className="overflow-hidden rounded-lg border border-bad/40 bg-white">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-l-4 border-bad bg-bad-soft px-5 py-3">
+            <span className="flex items-center gap-2 font-semibold text-bad-ink">
+              <IconAlert size={18} /> Divergence detected
+            </span>
+            <Link href={releaseHref(latest)} className="font-mono text-sm font-semibold text-ink hover:underline">
+              {latest.name}@{latest.version}
+            </Link>
+            <span className="flex items-center gap-2 text-xs text-ink-2">
+              attested <HashPill value={latest.expectedDigest} tone="ok" /> observed <HashPill value={latest.observedDigest} tone="bad" />
+            </span>
+            <span className="ml-auto flex items-center gap-3 text-xs text-muted">
+              {pkgs.size > 1 ? (
+                <span title="The record is append-only — every divergent release stays visible">+{pkgs.size - 1} earlier</span>
+              ) : null}
+              <Link href={releaseHref(latest)} className="inline-flex items-center gap-1 font-semibold text-bad-ink hover:underline">
+                View advisory <IconArrowRight size={13} />
+              </Link>
+            </span>
+          </div>
         </div>
       ) : null}
       {toast ? (
-        <div role="status" className="fixed right-6 bottom-6 z-50 max-w-md rounded-lg border border-red-500 bg-red-900 p-4 text-red-50 shadow-2xl">
-          <p className="font-bold">✗ New divergence on-chain</p>
-          <p className="mt-1 text-sm">
-            {toast.name}@{toast.version} — reported by <span className="font-mono">{short(toast.attester)}</span>
+        <div role="status" className="fixed right-6 bottom-6 z-50 max-w-sm rounded-lg border border-bad bg-white p-4 shadow-pop">
+          <p className="flex items-center gap-2 font-semibold text-bad-ink">
+            <IconX size={16} strokeWidth={3} /> New divergence on-chain
+          </p>
+          <p className="mt-1 font-mono text-xs text-ink-2">
+            {toast.name}@{toast.version} · reported by {short(toast.attester)}
           </p>
         </div>
       ) : null}
@@ -100,138 +106,132 @@ export function DivergenceAlert() {
   );
 }
 
-export function PackageTable({ items, threshold }: { items: Attestation[]; threshold?: number }) {
+/** Registry-style rows: name + version + status on top, evidence underneath. */
+export function PackageRows({ items, threshold, attesterCount }: { items: Attestation[]; threshold?: number; attesterCount?: number }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left">
-        <thead className="text-sm uppercase tracking-wide text-neutral-400">
-          <tr>
-            <th className="py-2 pr-4">Package</th>
-            <th className="py-2 pr-4">Status</th>
-            <th className="py-2 pr-4">artifactDigest</th>
-            <th className="py-2 pr-4">Publisher</th>
-            <th className="py-2">Submitted</th>
-          </tr>
-        </thead>
-        <tbody className="text-lg">
-          {items.map((a) => (
-            <tr key={a._id} className={`border-t border-neutral-800 ${a.status === "DIVERGENT" ? "bg-red-950/40" : ""}`}>
-              <td className="py-3 pr-4">
-                <Link href={releaseHref({ name: a.name, version: a.version, packageId: a._id })} className="font-semibold hover:underline">
-                  {a.name}
-                  <span className="text-neutral-400">@{a.version}</span>
-                </Link>
-              </td>
-              <td className="py-3 pr-4">
-                <StatusBadge status={a.status} detail={statusDetail(a, threshold)} />
-              </td>
-              <td className="py-3 pr-4 text-base">
-                <Digest value={a.artifactDigest} />
-              </td>
-              <td className="py-3 pr-4 font-mono text-base text-neutral-300">{short(a.publisher)}</td>
-              <td className="py-3 text-base text-neutral-400">{ago(a.submittedAt)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <ul className="divide-y divide-line">
+      {items.map((a) => (
+        <li key={a._id} className={`px-5 py-3.5 hover:bg-hover ${a.status === "DIVERGENT" ? "border-l-2 border-l-bad bg-bad-soft/40" : ""}`}>
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            <Link href={releaseHref({ name: a.name, version: a.version, packageId: a._id })} className="text-[15px] font-semibold break-all text-primary hover:underline">
+              {a.name}
+            </Link>
+            <span className="rounded bg-code px-1.5 py-0.5 font-mono text-xs text-ink-2">{a.version}</span>
+            <StatusBadge status={a.status} />
+            <span className="ml-auto text-xs whitespace-nowrap text-muted" title={new Date(a.submittedAt).toUTCString()}>
+              {ago(a.submittedAt)}
+            </span>
+          </div>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
+            <span className="flex items-center gap-1.5">
+              digest <HashPill value={a.artifactDigest} tone={a.status === "DIVERGENT" ? "bad" : "default"} />
+            </span>
+            <span className={a.status === "DIVERGENT" ? "text-bad-ink" : ""}>
+              {a.status === "DIVERGENT" ? statusDetail(a, threshold) : `${a.corroborations}${attesterCount ? ` of ${attesterCount}` : ""} attesters`}
+            </span>
+            <span className="font-mono" title={a.publisher}>
+              publisher {short(a.publisher)}
+            </span>
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }
 
-export function RecentPackages({ limit = 8 }: { limit?: number }) {
+export function RecentPackages({ limit = 10 }: { limit?: number }) {
   const p = usePoll<{ items: Attestation[] }>(() => indexer(`/packages?limit=${limit}`), `recent-${limit}`);
-  const s = usePoll<Stats>(() => indexer<Stats>("/stats"), "stats-threshold");
+  const s = useStats();
   return (
-    <Card title="Recent attestations" right={<Link href="/packages" className="text-sky-300 hover:underline">all packages →</Link>}>
+    <Card
+      flush
+      title="Recent attestations"
+      right={
+        <Link href="/packages" className="inline-flex items-center gap-1 text-[13px] font-semibold text-primary hover:underline">
+          All packages <IconArrowRight size={13} />
+        </Link>
+      }
+    >
       <States
         state={p}
         what="attestations"
+        rows={6}
         isEmpty={(d) => d.items.length === 0}
         empty={
           <>
-            No attestations yet. Run <span className="font-mono text-neutral-200">cairn publish</span> to create the first one.
+            No attestations yet. Run <span className="font-mono text-ink">cairn publish</span> to create the first one.
           </>
         }
       >
-        {(d) => <PackageTable items={d.items} threshold={s.data?.threshold} />}
+        {(d) => <PackageRows items={d.items} threshold={s.data?.threshold} attesterCount={s.data?.activeAttesters} />}
       </States>
     </Card>
   );
 }
 
-export function AttesterCards({ large = false }: { large?: boolean }) {
-  const a = usePoll<AttestersResponse>(() => indexer("/attesters"), "attesters");
+export function useAttesters() {
+  return usePoll<AttestersResponse>(() => indexer("/attesters"), "attesters");
+}
+
+/** Compact attester list for sidebars. */
+export function AttesterList() {
+  const a = useAttesters();
   return (
-    <States state={a} what="attesters" isEmpty={(d) => d.attesters.length === 0} empty="No attesters registered in the quorum policy yet.">
-      {(d) => (
+    <Card
+      flush
+      title={
         <>
-          <div className={`grid gap-4 ${large ? "md:grid-cols-3" : "md:grid-cols-3"}`}>
-            {d.attesters.map((t) => (
-              <div key={t.address} className={`rounded-xl border p-4 ${t.online ? "border-emerald-900 bg-emerald-950/20" : "border-neutral-800 bg-neutral-900/60"}`}>
-                <div className="flex items-center justify-between">
-                  <p className="text-lg font-semibold">{t.label ?? "unlabelled attester"}</p>
-                  <span className={`text-sm font-semibold ${t.online ? "text-emerald-300" : "text-neutral-400"}`}>
-                    {t.online ? "● online" : d.healthConfigured ? "○ offline" : "health not exposed"}
-                  </span>
-                </div>
-                <p className="mt-1 font-mono text-sm text-neutral-400" title={t.address}>
-                  {t.address}
-                </p>
-                <dl className="mt-3 grid grid-cols-2 gap-y-1 text-sm">
-                  <dt className="text-neutral-400">corroborations</dt>
-                  <dd className="text-right tabular-nums text-emerald-300">{t.corroborationCount}</dd>
-                  <dt className="text-neutral-400">divergences reported</dt>
-                  <dd className={`text-right tabular-nums ${t.divergenceCount > 0 ? "text-red-300" : ""}`}>{t.divergenceCount}</dd>
-                  <dt className="text-neutral-400">last on-chain action</dt>
-                  <dd className="text-right">{ago(t.lastSeenAt)}</dd>
-                  {t.health ? (
-                    <>
-                      <dt className="text-neutral-400">synced to block</dt>
-                      <dd className="text-right tabular-nums">{t.health.lastProcessedBlock}</dd>
-                      <dt className="text-neutral-400">registry / chain</dt>
-                      <dd className="text-right">
-                        {t.health.registryReachable ? "✓" : "✗"} / {t.health.chainReachable ? "✓" : "✗"}
-                      </dd>
-                      {large ? (
-                        <>
-                          <dt className="text-neutral-400">uptime</dt>
-                          <dd className="text-right tabular-nums">{t.health.uptimeSeconds}s</dd>
-                        </>
-                      ) : null}
-                    </>
-                  ) : null}
-                </dl>
-              </div>
-            ))}
-          </div>
-          <p className="mt-3 text-sm text-neutral-500">
-            Attester set and threshold ({d.threshold} of {d.attesters.length}) are read from QuorumPolicy events;{" "}
-            {d.healthConfigured
-              ? "online status from each attester process's own /health endpoint."
-              : "these attesters run on private machines and do not expose /health here — their on-chain activity above is the evidence."}
-            {d.unreachable.length > 0 ? ` ${d.unreachable.length} configured health endpoint(s) unreachable.` : ""}
-          </p>
+          Attester quorum
+          {a.data ? <span className="rounded bg-primary-soft px-1.5 font-mono text-[11px] text-primary">{a.data.threshold} of {a.data.attesters.length}</span> : null}
         </>
-      )}
-    </States>
+      }
+      right={
+        <Link href="/attesters" className="text-[13px] font-semibold text-primary hover:underline">
+          Details
+        </Link>
+      }
+    >
+      <States state={a} what="attesters" rows={3} isEmpty={(d) => d.attesters.length === 0} empty="No attesters registered yet.">
+        {(d) => (
+          <ul className="divide-y divide-line">
+            {d.attesters.map((t) => (
+              <li key={t.address} className="flex items-center gap-3 px-5 py-2.5">
+                <span
+                  className={`h-2 w-2 shrink-0 rounded-full ${t.online ? "bg-ok" : d.healthConfigured ? "bg-line-strong" : "bg-teal"}`}
+                  title={t.online ? "online" : d.healthConfigured ? "offline" : "active on-chain (health endpoint not exposed)"}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-mono text-[13px] font-semibold">{t.label ?? short(t.address)}</p>
+                  <p className="text-xs text-muted">last action {ago(t.lastSeenAt)}</p>
+                </div>
+                <div className="text-right text-xs tabular-nums">
+                  <p className="text-ok-ink">{t.corroborationCount} ✓</p>
+                  <p className={t.divergenceCount > 0 ? "text-bad-ink" : "text-muted"}>{t.divergenceCount} ✗</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </States>
+    </Card>
   );
 }
 
 export function DivergenceFeed() {
   const d = usePoll<{ items: DivergenceItem[] }>(() => indexer("/divergences?limit=20"), "divergence-feed");
   return (
-    <Card title="Divergence feed">
-      <States state={d} what="divergences" isEmpty={(x) => x.items.length === 0} empty="No divergences recorded. Every attested artifact still matches what attesters observe.">
+    <Card flush title="Divergence reports" icon={<IconAlert size={16} />}>
+      <States state={d} what="divergences" rows={2} isEmpty={(x) => x.items.length === 0} empty="No divergences recorded.">
         {(x) => (
-          <ul className="space-y-3">
+          <ul className="divide-y divide-line">
             {x.items.map((i) => (
-              <li key={i.txHash} className="rounded-md border border-red-900 bg-red-950/30 p-3">
-                <Link href={releaseHref(i)} className="font-semibold text-red-100 hover:underline">
-                  ✗ {i.name}@{i.version}
+              <li key={i.txHash} className="px-5 py-3">
+                <Link href={releaseHref(i)} className="font-mono text-[13px] font-semibold text-bad-ink hover:underline">
+                  {i.name}@{i.version}
                 </Link>
-                <p className="mt-1 text-sm text-neutral-300">
-                  attester <span className="font-mono">{short(i.attester)}</span> observed <span className="font-mono">{short(i.observedDigest)}</span> · block{" "}
-                  {i.blockNumber} · {ago(i.timestamp)} · tx <TxRef hash={i.txHash} />
+                <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+                  observed <HashPill value={i.observedDigest} tone="bad" /> by <span className="font-mono">{short(i.attester)}</span> · {ago(i.timestamp)} ·{" "}
+                  <TxRef hash={i.txHash} />
                 </p>
               </li>
             ))}
@@ -242,7 +242,7 @@ export function DivergenceFeed() {
   );
 }
 
-interface ActivityItem {
+export interface ActivityItem {
   id: string;
   type: "AttestationSubmitted" | "AttesterCorroborated" | "DivergenceReported";
   packageId?: `0x${string}`;
@@ -256,88 +256,117 @@ interface ActivityItem {
   timestamp: string;
 }
 
-/**
- * Live stream of on-chain events, newest first. New rows flash in, so an audience can
- * watch attesters corroborate — and then catch the republication — as it happens.
- */
-export function ActivityFeed({ limit = 12 }: { limit?: number }) {
-  const feed = usePoll<{ items: ActivityItem[] }>(() => indexer(`/events?limit=${limit}`), `events-${limit}`, 3000);
+/** Flash rows that appeared since the previous poll. */
+export function useFresh(ids: string[] | undefined): Set<string> {
   const seen = useRef<Set<string> | null>(null);
   const [fresh, setFresh] = useState<Set<string>>(new Set());
-
+  const key = ids?.join(",");
   useEffect(() => {
-    if (!feed.data) return;
-    const ids = feed.data.items.map((i) => i.id);
+    if (!ids) return;
     if (seen.current !== null) {
       const added = ids.filter((id) => !seen.current!.has(id));
       if (added.length > 0) {
         setFresh(new Set(added));
-        setTimeout(() => setFresh(new Set()), 4000);
+        setTimeout(() => setFresh(new Set()), 3500);
       }
     }
     seen.current = new Set(ids);
-  }, [feed.data]);
+  }, [key]);
+  return fresh;
+}
 
-  const row = (e: ActivityItem) => {
-    const who = e.actorLabel ?? short(e.actor);
-    const pkg = e.name ? `${e.name}@${e.version}` : short(e.packageId);
-    if (e.type === "AttestationSubmitted")
-      return { icon: "◆", tone: "text-sky-300", text: <>Attestation submitted for <b>{pkg}</b></> };
-    if (e.type === "AttesterCorroborated")
-      return {
-        icon: "✓",
-        tone: "text-emerald-300",
-        text: (
-          <>
-            <b>{who}</b> re-fetched <b>{pkg}</b> and corroborated · {String(e.data.corroborations)} total
-            {e.data.quorumReached === true ? " · quorum reached" : ""}
-          </>
-        )
-      };
-    return {
-      icon: "✗",
-      tone: "text-red-300",
-      text: (
-        <>
-          <b>{who}</b> observed different bytes for <b>{pkg}</b> — divergence recorded
-        </>
-      )
-    };
-  };
+export const EVENT_META: Record<ActivityItem["type"], { label: string; cls: string }> = {
+  AttestationSubmitted: { label: "SUBMITTED", cls: "bg-primary-soft text-primary border-primary/20" },
+  AttesterCorroborated: { label: "CORROBORATED", cls: "bg-ok-soft text-ok-ink border-ok/20" },
+  DivergenceReported: { label: "DIVERGENCE", cls: "bg-bad text-white border-bad" }
+};
+
+/** Live stream of on-chain events, newest first; new rows flash in. */
+export function ActivityFeed({ limit = 10 }: { limit?: number }) {
+  const feed = usePoll<{ items: ActivityItem[] }>(() => indexer(`/events?limit=${limit}`), `events-${limit}`, 3000);
+  const fresh = useFresh(feed.data?.items.map((i) => i.id));
 
   return (
-    <Card title="Live on-chain activity" right={<span className="text-sm text-neutral-400">● updating every 3s</span>}>
-      <States state={feed} what="activity" isEmpty={(d) => d.items.length === 0} empty="No on-chain activity yet." rows={4}>
+    <Card
+      flush
+      title={
+        <>
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-teal opacity-60" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-teal" />
+          </span>
+          Live on-chain activity
+        </>
+      }
+      right={
+        <Link href="/live" className="text-[13px] font-semibold text-primary hover:underline">
+          Monitor
+        </Link>
+      }
+    >
+      <States state={feed} what="activity" isEmpty={(d) => d.items.length === 0} empty="No on-chain activity yet." rows={5}>
         {(d) => (
-          <ol className="space-y-2">
+          <ol className="divide-y divide-line">
             {d.items.map((e) => {
-              const r = row(e);
+              const m = EVENT_META[e.type];
+              const who = e.actorLabel ?? short(e.actor);
+              const pkg = e.name ? `${e.name}@${e.version}` : short(e.packageId);
               return (
-                <li
-                  key={e.id}
-                  className={`flex flex-wrap items-baseline gap-x-3 rounded-md px-3 py-2 transition-colors duration-1000 ${
-                    fresh.has(e.id) ? (e.type === "DivergenceReported" ? "bg-red-900/60" : "bg-emerald-900/40") : "bg-neutral-900/40"
-                  }`}
-                >
-                  <span className={`text-lg ${r.tone}`} aria-hidden>
-                    {r.icon}
-                  </span>
-                  {e.packageId ? (
-                    <Link href={releaseHref(e)} className="text-lg hover:underline">
-                      {r.text}
-                    </Link>
-                  ) : (
-                    <span className="text-lg">{r.text}</span>
-                  )}
-                  <span className="ml-auto text-sm text-neutral-400">
-                    block {e.blockNumber} · {ago(e.timestamp)} · <TxRef hash={e.txHash} />
-                  </span>
+                <li key={e.id} className={`px-5 py-2.5 ${fresh.has(e.id) ? (e.type === "DivergenceReported" ? "flash-bad" : "flash") : ""}`}>
+                  <div className="flex items-center gap-2">
+                    <span className={`rounded border px-1.5 py-px font-mono text-[10px] font-semibold ${m.cls}`}>{m.label}</span>
+                    <span className="ml-auto text-[11px] text-muted" title={`block ${e.blockNumber}`}>
+                      {ago(e.timestamp)}
+                    </span>
+                  </div>
+                  <p className="mt-1 truncate text-[13px]">
+                    {e.packageId ? (
+                      <Link href={releaseHref(e)} className="font-mono text-ink hover:text-primary hover:underline">
+                        {pkg}
+                      </Link>
+                    ) : (
+                      <span className="font-mono">{pkg}</span>
+                    )}
+                    {e.type !== "AttestationSubmitted" ? <span className="text-muted"> · {who}</span> : null}
+                    {e.type === "AttesterCorroborated" && e.data.quorumReached === true ? <span className="text-ok-ink"> · quorum</span> : null}
+                  </p>
                 </li>
               );
             })}
           </ol>
         )}
       </States>
+    </Card>
+  );
+}
+
+/** "Enforce in CI" card with the real action reference. */
+export function CiCard() {
+  const yaml = `- uses: theseriouscoder123/CARIN@v1\n  with:\n    lockfile: package-lock.json`;
+  return (
+    <Card
+      title="Enforce in CI"
+      right={
+        <Tip align="right">
+          The job fails when any dependency is divergent, under quorum or (optionally) unattested, and writes a verdict table to the job summary.
+        </Tip>
+      }
+    >
+      <div className="overflow-hidden rounded border border-nav-line bg-nav">
+        <div className="flex items-center justify-between border-b border-nav-line px-3 py-1.5 font-mono text-[11px] text-slate-400">
+          .github/workflows/ci.yml
+          <CopyButton value={yaml} className="text-slate-400 hover:text-white" />
+        </div>
+        <pre className="overflow-x-auto p-3 font-mono text-[12px] leading-relaxed text-slate-100">{yaml}</pre>
+      </div>
+      <div className="mt-3 flex items-center justify-between text-[13px]">
+        <span className="flex items-center gap-1.5 text-muted">
+          <IconCheck size={13} className="text-ok" /> No npm credentials needed
+        </span>
+        <Link href="/docs#ci" className="font-semibold text-primary hover:underline">
+          Setup guide
+        </Link>
+      </div>
     </Card>
   );
 }

@@ -7,6 +7,7 @@ import { EXPLORER_URL, REGISTRY_ADDR, RPC_LABEL } from "@/lib/config";
 import { ago, short } from "@/lib/format";
 import type { AttestersResponse, Health, Hex } from "@/lib/types";
 import { packageHref } from "@/lib/links";
+import { IconActivity, IconArrowRight, IconCheck, IconClock, IconX } from "@/components/icons";
 import { indexer, usePoll } from "@/lib/use-poll";
 
 interface FeedEvent {
@@ -90,106 +91,103 @@ export default function LivePage() {
 
   const theme =
     status === "DIVERGENT"
-      ? { page: "bg-red-950/70 ring-red-500", text: "text-red-100", glyph: "✗", word: "DIVERGENT", sub: "Republished with different bytes than were attested. Quorum revoked — the build is blocked." }
+      ? { panel: "bg-bad", glyph: <IconX size={72} strokeWidth={3} />, word: "DIVERGENT", sub: "Republished with different bytes than were attested. Quorum revoked — the build is blocked." }
       : status === "VERIFIED"
-        ? { page: "bg-emerald-950/50 ring-emerald-500", text: "text-emerald-100", glyph: "✓", word: "VERIFIED", sub: `${confirmed} of ${set.length} independent attesters re-downloaded it and confirmed the digest.` }
+        ? { panel: "bg-ok", glyph: <IconCheck size={72} strokeWidth={3} />, word: "VERIFIED", sub: `${confirmed} of ${set.length} independent attesters re-downloaded it and confirmed the digest.` }
         : status === "PENDING"
-          ? { page: "bg-amber-950/40 ring-amber-500", text: "text-amber-100", glyph: "◷", word: "PENDING", sub: `Waiting for independent attesters · ${confirmed} of ${record?.threshold ?? 2} needed so far.` }
-          : { page: "bg-neutral-900/60 ring-neutral-700", text: "text-neutral-200", glyph: "…", word: "WAITING", sub: "Waiting for the next attestation to appear on-chain." };
+          ? { panel: "bg-warn", glyph: <IconClock size={72} strokeWidth={2.5} />, word: "PENDING", sub: `Waiting for independent attesters · ${confirmed} of ${record?.threshold ?? 2} needed so far.` }
+          : { panel: "bg-nav", glyph: <IconClock size={72} strokeWidth={2} />, word: "WAITING", sub: "Waiting for the attestation to appear on-chain." };
 
   if (!packageId) {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
-        <p className="text-5xl font-bold">Live view</p>
-        <p className="text-2xl text-neutral-400">{feed.error ? `Indexer unreachable: ${feed.error}` : "No attestation yet. Run cairn publish and it will appear here."}</p>
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 text-center">
+        <IconActivity size={40} className="text-muted" />
+        <p className="text-3xl font-bold">Live consensus monitor</p>
+        <p className="text-lg text-muted">
+          {feed.error ? `Indexer unreachable: ${feed.error}` : feed.data ? "No attestation yet. Run cairn publish and it will appear here." : "Connecting to the log…"}
+        </p>
       </div>
     );
   }
 
   return (
-    <div className={`space-y-8 rounded-3xl p-8 ring-2 transition-colors duration-700 ${theme.page}`}>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-lg uppercase tracking-widest text-neutral-400">{pinned ? "pinned package" : "following the newest demo release"}</p>
-          <h1 className="mt-2 text-5xl font-bold break-all md:text-6xl">
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="min-w-0">
+          <p className="mb-2 flex items-center gap-2 font-mono text-xs text-muted uppercase">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-teal opacity-60" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-teal" />
+            </span>
+            Live consensus · {pinned ? "pinned release" : "following the newest demo release"}
+          </p>
+          <h1 className="text-4xl leading-tight font-bold tracking-tight break-all md:text-5xl">
             {target?.name ?? short(packageId, 8, 6)}
-            {target?.version ? <span className="text-neutral-400">@{target.version}</span> : null}
+            {target?.version ? <span className="ml-3 rounded border border-line bg-white px-2.5 py-0.5 align-middle font-mono text-2xl font-medium text-ink-2 md:text-3xl">{target.version}</span> : null}
           </h1>
         </div>
-        <Link href={target?.name ? packageHref(target.name, target.version) : `/packages/${packageId}`} className="rounded-lg bg-neutral-100 px-5 py-3 text-lg font-semibold text-neutral-900 hover:bg-white">
-          full record →
+        <Link href={target?.name ? packageHref(target.name, target.version) : `/packages/${packageId}`} className="btn-outline">
+          Full record <IconArrowRight size={14} />
         </Link>
       </div>
 
-      <div className={`flex flex-wrap items-center gap-6 ${theme.text}`}>
-        <span className="text-8xl font-black leading-none md:text-9xl" aria-hidden>
-          {theme.glyph}
-        </span>
-        <div>
-          <p className="text-6xl font-black tracking-tight md:text-7xl">{theme.word}</p>
-          <p className="mt-2 max-w-3xl text-2xl">{theme.sub}</p>
+      <section className={`flex flex-wrap items-center gap-6 rounded-lg px-8 py-8 text-white transition-colors duration-700 ${theme.panel}`} aria-live="polite">
+        <span className="shrink-0">{theme.glyph}</span>
+        <div className="min-w-0">
+          <p className="text-5xl font-black tracking-tight md:text-7xl">{theme.word}</p>
+          <p className="mt-2 max-w-3xl text-xl text-white/90 md:text-2xl">{theme.sub}</p>
         </div>
-      </div>
+      </section>
 
-      <div className="grid gap-5 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {set.map((a) => {
           const st = tile(a.address);
           const look =
             st === "diverged"
-              ? "border-red-500 bg-red-900/60 text-red-50"
+              ? { box: "border-bad bg-bad-soft", ink: "text-bad-ink", icon: <IconX size={36} strokeWidth={3} />, text: "observed different bytes" }
               : st === "corroborated"
-                ? "border-emerald-500 bg-emerald-900/50 text-emerald-50"
-                : "border-neutral-700 bg-neutral-900/70 text-neutral-300";
+                ? { box: "border-ok bg-ok-soft", ink: "text-ok-ink", icon: <IconCheck size={36} strokeWidth={3} />, text: "re-fetched · digest matches" }
+                : { box: "border-line-strong bg-white", ink: "text-muted", icon: <IconClock size={36} className="animate-pulse" />, text: record?.exists ? "re-fetching…" : "standing by" };
           return (
-            <div key={a.address} className={`rounded-2xl border-2 p-6 transition-colors duration-500 ${look}`}>
+            <div key={a.address} className={`rounded-lg border-2 p-5 transition-colors duration-500 ${look.box}`}>
               <div className="flex items-center justify-between">
-                <p className="text-3xl font-bold">{a.label ?? short(a.address)}</p>
-                <span className={`text-5xl ${st === "waiting" ? "animate-pulse" : ""}`} aria-hidden>
-                  {st === "diverged" ? "✗" : st === "corroborated" ? "✓" : "◷"}
-                </span>
+                <p className="font-mono text-2xl font-bold">{a.label ?? short(a.address)}</p>
+                <span className={look.ink}>{look.icon}</span>
               </div>
-              <p className="mt-2 font-mono text-base opacity-80">{short(a.address, 6, 4)}</p>
-              <p className="mt-4 text-xl font-semibold">
-                {st === "diverged"
-                  ? "observed different bytes"
-                  : st === "corroborated"
-                    ? "re-fetched · digest matches"
-                    : record?.exists
-                      ? "re-fetching…"
-                      : "standing by"}
-              </p>
+              <p className="mt-1 font-mono text-sm text-muted">{short(a.address, 6, 4)}</p>
+              <p className={`mt-3 text-lg font-semibold ${look.ink}`}>{look.text}</p>
             </div>
           );
         })}
       </div>
 
       {record?.exists ? (
-        <div className="grid gap-4 text-lg md:grid-cols-2">
-          <div className="rounded-xl bg-black/30 p-4">
-            <p className="text-neutral-400">attested digest</p>
-            <p className="font-mono break-all text-emerald-300">{record.artifactDigest}</p>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="rounded-lg border border-line bg-white p-4">
+            <p className="label">Attested digest</p>
+            <p className="mt-1 font-mono text-[15px] break-all text-ok-ink">{record.artifactDigest}</p>
           </div>
-          <div className="rounded-xl bg-black/30 p-4">
-            <p className="text-neutral-400">{record.divergences.length > 0 ? "observed by the attesters" : "observed"}</p>
-            <p className={`font-mono break-all ${record.divergences.length > 0 ? "text-red-300" : "text-emerald-300"}`}>
+          <div className={`rounded-lg border p-4 ${record.divergences.length > 0 ? "border-bad/40 bg-bad-soft" : "border-line bg-white"}`}>
+            <p className="label">Observed by attesters</p>
+            <p className={`mt-1 font-mono text-[15px] break-all ${record.divergences.length > 0 ? "text-bad-ink" : "text-ok-ink"}`}>
               {record.divergences[0]?.observedDigest ?? (confirmed > 0 ? record.artifactDigest : "—")}
             </p>
           </div>
         </div>
       ) : null}
 
-      <p className="text-base text-neutral-400">
-        Read from the AttestationRegistry in this browser via <span className="font-mono">{RPC_LABEL}</span>
-        {record ? ` at block ${record.blockNumber}` : ""} · updated {chain.updatedAt ? ago(chain.updatedAt.toISOString()) : "—"}
+      <p className="font-mono text-xs text-muted">
+        Read from the AttestationRegistry in this browser via {RPC_LABEL}
+        {record ? ` at block #${record.blockNumber}` : ""} · updated {chain.updatedAt ? ago(chain.updatedAt.toISOString()) : "—"}
         {EXPLORER_URL && registry ? (
           <>
             {" · "}
-            <a href={`${EXPLORER_URL}/address/${registry}`} target="_blank" rel="noreferrer" className="text-sky-300 hover:underline">
-              contract on the explorer
+            <a href={`${EXPLORER_URL}/address/${registry}`} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+              contract on explorer
             </a>
           </>
         ) : null}
-        {chain.error ? <span className="text-amber-300"> · last chain read failed: {chain.error}</span> : null}
+        {chain.error ? <span className="text-warn-ink"> · last chain read failed: {chain.error}</span> : null}
       </p>
     </div>
   );

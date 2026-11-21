@@ -2,7 +2,8 @@
 import { packageId as computePackageId } from "@cairn/core/identity";
 import Link from "next/link";
 import { useState } from "react";
-import { Card, Digest, StatusBadge } from "@/components/ui";
+import { IconArrowRight, IconCheck, IconClock, IconInfo, IconX } from "@/components/icons";
+import { Card, CodeBlock, Digest, PageHeader, StatusBadge, Tip } from "@/components/ui";
 import { chainStatus, readRecord, type ChainRecord } from "@/lib/chain";
 import { INDEXER_URL, REGISTRY_ADDR, RPC_LABEL } from "@/lib/config";
 import { short } from "@/lib/format";
@@ -15,7 +16,7 @@ export default function VerifyPage() {
   const [name, setName] = useState("");
   const [version, setVersion] = useState("");
   const [steps, setSteps] = useState<Step[]>([]);
-  const [result, setResult] = useState<{ id: Hex; record: ChainRecord } | null>(null);
+  const [result, setResult] = useState<{ id: Hex; record: ChainRecord; name: string; version: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function run() {
@@ -31,23 +32,25 @@ export default function VerifyPage() {
       if (last) Object.assign(last, { state, detail });
       setSteps([...log]);
     };
+    const n = name.trim();
+    const v = version.trim();
     try {
-      push({ label: `computing packageId = keccak256("npm:${name}@${version}") in your browser`, state: "running" });
-      const id = computePackageId("npm", name.trim(), version.trim()) as Hex;
+      push({ label: `packageId = keccak256("npm:${n}@${v}")`, state: "running" });
+      const id = computePackageId("npm", n, v) as Hex;
       finish("done", id);
 
-      push({ label: "locating the AttestationRegistry contract", state: "running" });
+      push({ label: "Locate AttestationRegistry", state: "running" });
       let registry = REGISTRY_ADDR;
       if (!registry) {
         const h = (await (await fetch(`${INDEXER_URL}/api/v1/health`)).json()) as Health;
         registry = h.registry;
-        finish("done", `${registry} (reported by the indexer — set NEXT_PUBLIC_REGISTRY_ADDR to pin it)`);
-      } else finish("done", `${registry} (configured)`);
+        finish("done", `${registry} (reported by the indexer)`);
+      } else finish("done", registry);
 
-      push({ label: `reading the record, quorum and divergences straight from the chain at ${RPC_LABEL}`, state: "running" });
+      push({ label: "Read record, quorum and divergences from the chain", state: "running" });
       const record = await readRecord(registry, id);
-      finish("done", `read at block ${record.blockNumber}`);
-      setResult({ id, record });
+      finish("done", `${RPC_LABEL} · block #${record.blockNumber}`);
+      setResult({ id, record, name: n, version: v });
     } catch (err) {
       finish("failed", err instanceof Error ? err.message : String(err));
     } finally {
@@ -56,102 +59,122 @@ export default function VerifyPage() {
   }
 
   const status = result ? chainStatus(result.record) : null;
+  const r = result?.record;
 
   return (
     <div className="space-y-6">
-      <h1 className="text-4xl font-bold">Verify a package</h1>
-      <p className="max-w-3xl text-lg text-neutral-400">
-        Enter a package and exact version. This page computes its identity and reads the attestation record directly from the contract in your
-        browser — no CAIRN server is asked for the verdict.
-      </p>
+      <PageHeader
+        crumbs={<span>verify / single package</span>}
+        title="Verify a package"
+        sub={
+          <>
+            Check one exact version against the contract — computed and read in your browser, no CAIRN server involved.{" "}
+            <Tip>This reads the attested state. Digesting the bytes you would actually install is what the CLI does.</Tip>
+          </>
+        }
+      />
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void run();
-        }}
-        className="flex flex-wrap gap-3"
-      >
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="package name, e.g. left-pad or @cairn-demo/greeting"
-          className="min-w-80 flex-[2] rounded-lg border border-neutral-700 bg-neutral-900 px-4 py-3 text-lg outline-none focus:border-sky-500"
-          required
-        />
-        <input
-          value={version}
-          onChange={(e) => setVersion(e.target.value)}
-          placeholder="exact version, e.g. 1.3.0"
-          className="min-w-48 flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-4 py-3 text-lg outline-none focus:border-sky-500"
-          required
-        />
-        <button type="submit" disabled={busy} className="rounded-lg bg-sky-500 px-6 py-3 text-lg font-semibold text-neutral-950 hover:bg-sky-400 disabled:opacity-50">
-          {busy ? "Checking…" : "Check"}
-        </button>
-      </form>
+      <Card>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void run();
+          }}
+          className="grid grid-cols-1 gap-3 md:grid-cols-[2fr_1fr_auto]"
+        >
+          <label className="space-y-1">
+            <span className="label">Package name</span>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="express or @scope/name" className="input w-full py-2.5 font-mono" required />
+          </label>
+          <label className="space-y-1">
+            <span className="label">Exact version</span>
+            <input value={version} onChange={(e) => setVersion(e.target.value)} placeholder="4.21.2" className="input w-full py-2.5 font-mono" required />
+          </label>
+          <div className="flex items-end">
+            <button type="submit" disabled={busy} className="btn-primary w-full py-2.5 md:w-auto">
+              {busy ? "Checking…" : "Verify"}
+            </button>
+          </div>
+        </form>
+      </Card>
 
       {steps.length > 0 ? (
-        <Card title="What just happened">
-          <ol className="space-y-2">
-            {steps.map((s, i) => (
-              <li key={i} className="text-lg">
-                <span className={s.state === "done" ? "text-emerald-300" : s.state === "failed" ? "text-red-300" : "text-amber-300"}>
-                  {s.state === "done" ? "✓" : s.state === "failed" ? "✗" : "…"}
-                </span>{" "}
-                {s.label}
-                {s.detail ? <p className="ml-6 font-mono text-sm break-all text-neutral-400">{s.detail}</p> : null}
-              </li>
-            ))}
-          </ol>
-        </Card>
-      ) : null}
-
-      {result && status ? (
-        <Card className={status === "DIVERGENT" ? "border-2 border-red-500 bg-red-950/40" : ""}>
-          <div className="space-y-4">
-            <StatusBadge status={status} size="lg" />
-            {status === "UNATTESTED" ? (
-              <p className="text-lg text-neutral-300">No attestation exists on-chain for this exact version.</p>
-            ) : (
-              <dl className="grid gap-x-8 gap-y-2 text-lg md:grid-cols-[max-content_1fr]">
-                <dt className="text-neutral-400">attested artifactDigest</dt>
-                <dd>
-                  <Digest value={result.record.artifactDigest} full />
-                </dd>
-                <dt className="text-neutral-400">corroborations</dt>
-                <dd>
-                  {result.record.corroborations} of {result.record.attesterCount} attesters (threshold {result.record.threshold})
-                </dd>
-                <dt className="text-neutral-400">publisher</dt>
-                <dd className="font-mono">{result.record.publisher}</dd>
-                <dt className="text-neutral-400">divergences</dt>
-                <dd className={result.record.divergences.length ? "text-red-300" : ""}>
-                  {result.record.divergences.length === 0
-                    ? "none recorded"
-                    : result.record.divergences.map((d) => `${short(d.attester)} saw ${short(d.observedDigest)}`).join(" · ")}
-                </dd>
-              </dl>
-            )}
-            {status !== "UNATTESTED" ? (
-              <Link href={packageHref(name.trim(), version.trim())} className="inline-block text-sky-300 hover:underline">
-                full record and timeline →
-              </Link>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+          <div className="space-y-5 lg:col-span-8">
+            {result && status && r ? (
+              <section
+                className={`rounded-lg border p-5 ${
+                  status === "DIVERGENT" ? "border-bad/50 bg-bad-soft" : status === "VERIFIED" ? "border-ok/40 bg-ok-soft" : status === "PENDING" ? "border-warn/40 bg-warn-soft" : "border-line-strong bg-code"
+                }`}
+              >
+                <div className="flex flex-wrap items-center gap-3">
+                  <StatusBadge status={status} size="lg" />
+                  <span className="font-mono text-[15px] font-semibold break-all">
+                    {result.name}@{result.version}
+                  </span>
+                </div>
+                {status === "UNATTESTED" ? (
+                  <p className="mt-3 text-[14px] text-ink-2">No attestation exists on-chain for this exact version. A CI gate with fail-on unattested would block it.</p>
+                ) : (
+                  <dl className="mt-4 grid gap-x-6 gap-y-3 text-[13px] sm:grid-cols-[max-content_1fr]">
+                    <dt className="label pt-0.5">Artifact digest</dt>
+                    <dd>
+                      <Digest value={r.artifactDigest} full className="text-xs" />
+                    </dd>
+                    <dt className="label pt-0.5">Attesters</dt>
+                    <dd>
+                      {r.corroborations} of {r.attesterCount} confirmed · threshold {r.threshold}
+                    </dd>
+                    <dt className="label pt-0.5">Publisher</dt>
+                    <dd className="font-mono text-xs break-all">{r.publisher}</dd>
+                    <dt className="label pt-0.5">Divergences</dt>
+                    <dd className={r.divergences.length ? "font-semibold text-bad-ink" : ""}>
+                      {r.divergences.length === 0 ? "none recorded" : r.divergences.map((d) => `${short(d.attester)} observed ${short(d.observedDigest)}`).join(" · ")}
+                    </dd>
+                  </dl>
+                )}
+                {status !== "UNATTESTED" ? (
+                  <Link href={packageHref(result.name, result.version)} className="mt-4 inline-flex items-center gap-1 text-[13px] font-semibold text-primary hover:underline">
+                    Full record and evidence <IconArrowRight size={13} />
+                  </Link>
+                ) : null}
+              </section>
             ) : null}
+            <CodeBlock title="byte-level check of a whole project" prompt code={"cairn verify --lockfile package-lock.json"} />
           </div>
-        </Card>
-      ) : null}
 
-      <Card title="What this page does — and does not — check">
-        <p className="text-lg text-neutral-300">
-          It reads the <em>attested</em> state: whether this version was attested, by whom, how many independent attesters confirmed it, and whether
-          any reported divergence. It does <strong>not</strong> download the tarball and digest it in your browser.
-        </p>
-        <p className="mt-3 text-lg text-neutral-300">
-          Byte-level verification — digesting exactly the bytes your machine would install and comparing them to the record — is what the CLI does:
-        </p>
-        <pre className="mt-3 rounded-md bg-neutral-950 p-4 font-mono text-base text-neutral-200">npx cairn verify --lockfile package-lock.json</pre>
-      </Card>
+          <Card title="Trace" className="lg:col-span-4">
+            <ol className="space-y-3">
+              {steps.map((s, i) => (
+                <li key={i} className="flex gap-2.5 text-[13px]">
+                  <span className={`mt-0.5 shrink-0 ${s.state === "done" ? "text-ok" : s.state === "failed" ? "text-bad" : "text-warn"}`}>
+                    {s.state === "done" ? <IconCheck size={14} strokeWidth={3} /> : s.state === "failed" ? <IconX size={14} strokeWidth={3} /> : <IconClock size={14} />}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="font-mono text-xs break-all">{s.label}</p>
+                    {s.detail ? <p className="mt-0.5 font-mono text-[11px] break-all text-muted">{s.detail}</p> : null}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </Card>
+        </div>
+      ) : (
+        <div className="flex items-start gap-3 rounded-lg border border-line bg-white px-4 py-3 text-[13px] text-ink-2">
+          <IconInfo size={16} className="mt-0.5 shrink-0 text-primary" />
+          <p>
+            Checking a whole project? Use the{" "}
+            <Link href="/check" className="link">
+              lockfile audit
+            </Link>{" "}
+            or browse{" "}
+            <Link href="/packages" className="link">
+              attested packages
+            </Link>
+            .
+          </p>
+        </div>
+      )}
     </div>
   );
 }

@@ -98,13 +98,13 @@ function parsePax(data: Uint8Array): Map<string, string> {
   return records;
 }
 
+// '7' (contiguous file) is a regular file to every extractor, node-tar included.
+// Excluding it would hand an attacker an invisible file slot.
 function classify(typeflag: string): TarEntryType {
   switch (typeflag) {
     case "0":
     case "\0":
     case "":
-    // '7' (contiguous file) is a regular file to every extractor, node-tar included.
-    // Excluding it would hand an attacker an invisible file slot.
     case "7":
       return "file";
     case "5":
@@ -127,10 +127,14 @@ export function readTar(input: Uint8Array): TarEntry[] {
   let pendingPax = new Map<string, string>();
   let pendingLongName: string | undefined;
   let pendingLongLink: string | undefined;
+  let terminated = false;
 
   while (offset + BLOCK <= bytes.length) {
     const header = bytes.subarray(offset, offset + BLOCK);
-    if (isZeroBlock(header)) break; // end-of-archive marker
+    if (isZeroBlock(header)) {
+      terminated = true; // end-of-archive marker
+      break;
+    }
     verifyChecksum(header);
 
     const typeflag = String.fromCharCode(header[156] ?? 0);
@@ -187,6 +191,10 @@ export function readTar(input: Uint8Array): TarEntry[] {
     pendingLongName = undefined;
     pendingLongLink = undefined;
   }
+
+  // A truncated download must surface as an operational error, never as a digest of
+  // whatever happened to arrive — that would be reported as false divergence.
+  if (!terminated) throw new ArchiveFormatError("tar archive is truncated (no end-of-archive marker)");
 
   return entries;
 }

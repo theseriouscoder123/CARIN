@@ -5,7 +5,7 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export const cairnEslint = tseslint.config(
-  { ignores: ["dist/**", "artifacts/**", "cache/**", "types/**", ".next/**", "coverage/**"] },
+  { ignores: ["test/fixtures/**", "dist/**", "artifacts/**", "cache/**", "types/**", ".next/**", "coverage/**"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

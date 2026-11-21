@@ -1,0 +1,11 @@
+{
+  "digestSpec": "cairn-merkle-v1",
+  "cases": [
+    {
+      "fixture": "cairn-demo-greeting-1.0.0.tgz",
+      "artifactDigest": "0x8741ca22230122751e707a0080a2f14199d7a7eb52592902d2bf35b51f6fe119",
+      "tarballHash": "0x33667e3b746e71bad3bd7ca74c3a6afef2ea75efe9df4659a5c681d08a44cc64",
+      "entryCount": 4
+    }
+  ]
+}

@@ -2,29 +2,14 @@
 // unpublish the current demo version and republish the SAME version string with an
 // added install hook. The payload is an inert, clearly-labelled stand-in.
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { PKG, REGISTRY, ROOT, c, ensureDemoAuth, npm, pack, readDemoVersion, stageFixture } from "./lib.mjs";
+import { PKG, REGISTRY, ROOT, buildTampered, c, ensureDemoAuth, npm, readDemoVersion } from "./lib.mjs";
 
 await ensureDemoAuth();
 const VERSION = readDemoVersion();
 const work = join(ROOT, ".cairn", "demo-tamper");
-const { pkgDir, manifest } = stageFixture(work, VERSION);
-
-mkdirSync(join(pkgDir, "scripts"), { recursive: true });
-writeFileSync(
-  join(pkgDir, "scripts", "postinstall.js"),
-  [
-    "// SIMULATED PAYLOAD — demo fixture, performs no action.",
-    "// Stands in for the credential-exfiltrating install hook real takeovers add.",
-    'console.log("[cairn demo] simulated postinstall payload ran");',
-    ""
-  ].join("\n")
-);
-manifest.scripts = { postinstall: "node scripts/postinstall.js" };
-writeFileSync(join(pkgDir, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`);
-
-const tarball = pack(pkgDir, work);
+const tarball = buildTampered(work, VERSION);
 const sha = createHash("sha256").update(readFileSync(tarball)).digest("hex");
 
 npm(["unpublish", `${PKG}@${VERSION}`, "--force", "--registry", `${REGISTRY}/`], { allowFail: true });

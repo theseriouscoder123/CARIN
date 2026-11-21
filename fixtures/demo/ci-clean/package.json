@@ -1,0 +1,12 @@
+{
+  "name": "cairn-ci-clean",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CI demo: a project whose dependencies are all attested and corroborated on Base Sepolia",
+  "dependencies": {
+    "escape-html": "1.0.3",
+    "is-number": "7.0.0",
+    "left-pad": "1.3.0",
+    "ms": "2.1.3"
+  }
+}

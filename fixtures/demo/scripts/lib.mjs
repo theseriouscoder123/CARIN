@@ -136,3 +136,32 @@ export function pack(dir, destDir) {
 export function ensureDir(p) {
   mkdirSync(dirname(p), { recursive: true });
 }
+
+/**
+ * Build the tampered variant of the fixture at `version`: same version string, plus an
+ * inert install hook. Shared by demo:tamper and the CI demo so both tamper identically.
+ */
+export function buildTampered(dir, version) {
+  const { pkgDir, manifest } = stageFixture(dir, version);
+  mkdirSync(join(pkgDir, "scripts"), { recursive: true });
+  writeFileSync(
+    join(pkgDir, "scripts", "postinstall.js"),
+    [
+      "// SIMULATED PAYLOAD — demo fixture, performs no action.",
+      "// Stands in for the credential-exfiltrating install hook real takeovers add.",
+      'console.log("[cairn demo] simulated postinstall payload ran");',
+      ""
+    ].join("\n")
+  );
+  manifest.scripts = { postinstall: "node scripts/postinstall.js" };
+  writeFileSync(join(pkgDir, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+  return pack(pkgDir, dir);
+}
+
+/** Generate the consumer project for `version` and resolve its lockfile against REGISTRY. */
+export function resolveConsumer(version) {
+  const template = readFileSync(join(DEMO, "consumer", "package.template.json"), "utf8");
+  writeFileSync(join(DEMO, "consumer", "package.json"), template.replace("{{DEMO_VERSION}}", version));
+  rmSync(join(DEMO, "consumer", "package-lock.json"), { force: true });
+  npm(["install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund"], { cwd: join(DEMO, "consumer") });
+}

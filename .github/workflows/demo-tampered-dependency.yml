@@ -1,0 +1,46 @@
+# The CI gate, demonstrated with the published action exactly as any repository would use
+# it. Run manually (Actions → this workflow → Run workflow) or push a demo-* tag. Two jobs:
+#   ✅ a lockfile of attested, corroborated npm packages passes
+#   ❌ a dependency republished with different bytes under an attested version is BLOCKED
+# The red job is the intended outcome. Main CI (ci.yml) is unaffected.
+name: "demo: tampered dependency (expected to fail)"
+on:
+  push:
+    tags: ["demo-*"]
+  workflow_dispatch:
+    inputs:
+      demo-version:
+        description: Attested @cairn-demo/greeting version to tamper with
+        default: "1.0.1"
+
+jobs:
+  clean:
+    name: ✅ clean lockfile passes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: theseriouscoder123/CARIN@v1
+        with:
+          lockfile: fixtures/demo/ci-clean/package-lock.json
+
+  tampered:
+    name: ❌ tampered dependency is blocked
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Start a local npm registry (Verdaccio) inside the runner
+        run: |
+          npx -y verdaccio@6.11.2 --config fixtures/demo/verdaccio.yaml > verdaccio.log 2>&1 &
+          for i in $(seq 1 60); do curl -fs http://127.0.0.1:4873/-/ping >/dev/null && break; sleep 1; done
+      - name: Republish the attested version with an added install hook
+        env:
+          DEMO_VERSION: ${{ inputs.demo-version || '1.0.1' }}
+        run: node fixtures/demo/scripts/ci-tampered.mjs
+      - uses: theseriouscoder123/CARIN@v1
+        with:
+          lockfile: fixtures/demo/consumer/package-lock.json

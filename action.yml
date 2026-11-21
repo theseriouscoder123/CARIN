@@ -1,0 +1,62 @@
+name: CAIRN verify
+description: >
+  Block the build when a dependency's bytes differ from what its maintainer attested and
+  independent attesters confirmed on-chain. Digests every artifact in an npm lockfile
+  locally and reads quorum state straight from the contract.
+author: CAIRN
+branding:
+  icon: shield
+  color: green
+
+inputs:
+  lockfile:
+    description: Path to the npm package-lock.json (v2/v3) to verify.
+    default: package-lock.json
+  rpc-url:
+    description: Chain RPC endpoint. Defaults to Base Sepolia, where CAIRN is deployed.
+    default: https://sepolia.base.org
+  contract:
+    description: AttestationRegistry address. Empty = the deployment file shipped with this action for the RPC's chain.
+    default: ""
+  fail-on:
+    description: Lowest verdict that fails the build: divergent | under-quorum | unattested.
+    default: under-quorum
+  policy:
+    description: Optional path to a cairn.policy.json.
+    default: ""
+  dashboard-url:
+    description: Transparency dashboard linked from the job summary.
+    default: https://cairn-two-ecru.vercel.app
+
+outputs:
+  exit-code:
+    description: 0 pass · 1 policy violation (the gate fired) · 2 could not verify (fails closed).
+    value: ${{ steps.verify.outputs.exit-code }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v5
+      with:
+        node-version: 22
+
+    - name: Build the cairn CLI
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: |
+        npx -y pnpm@12.18.0 install --frozen-lockfile --filter "@cairn/cli..." >/dev/null
+        npx -y pnpm@12.18.0 --filter "@cairn/cli..." build >/dev/null
+        echo "cairn CLI built from $(git -C "${{ github.action_path }}" rev-parse --short HEAD 2>/dev/null || echo action)"
+
+    - name: cairn verify
+      id: verify
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        LOCKFILE: ${{ inputs.lockfile }}
+        RPC_URL: ${{ inputs.rpc-url }}
+        CONTRACT: ${{ inputs.contract }}
+        FAIL_ON: ${{ inputs.fail-on }}
+        POLICY: ${{ inputs.policy }}
+        DASHBOARD_URL: ${{ inputs.dashboard-url }}
+      run: node "$ACTION_PATH/action/run.mjs"

@@ -121,6 +121,7 @@ async function main() {
   }
   for (const d of ["verdaccio", "it-attester-state", "it-payloads", "it-cache"]) rmSync(join(IT, d), { recursive: true, force: true });
   rmSync(CONSUMER_LOCK, { force: true });
+  rmSync(join(IT, "demo-state.json"), { force: true });
 
   step("cold start: Hardhat node + Verdaccio");
   background("chain", "pnpm", ["--filter", "@cairn/contracts", "node"]);
@@ -155,19 +156,22 @@ async function main() {
   assert(new Set(addresses).size === 3, "three attesters with three distinct keys");
   assert(pids.size === 3, `three separate OS processes (pids ${[...pids].join(", ")})`);
 
-  step("ACT 1 — release @cairn-demo/greeting@1.0.0 and attest it");
+  step("ACT 1 — release a fresh @cairn-demo/greeting version and attest it");
   run(process.execPath, [join(ROOT, "fixtures", "demo", "scripts", "release.mjs")]);
-  const pub = cairn(["publish", join(ROOT, "fixtures", "demo", "cairn-demo-greeting-1.0.0.tgz")], { CAIRN_PRIVATE_KEY: PUBLISHER_KEY });
+  const pub = cairn(["publish", join(ROOT, "fixtures", "demo", "cairn-demo-greeting.tgz")], { CAIRN_PRIVATE_KEY: PUBLISHER_KEY });
+  const demoVersion = pub.json.version;
+  const demoSpec = `@cairn-demo/greeting@${demoVersion}`;
   assert(pub.code === 0 && pub.json.status === "submitted", "cairn publish submitted the attestation");
   const attestedDigest = pub.json.artifactDigest;
   const status = await waitFor("quorum on the demo package", async () => {
-    const s = cairn(["status", "@cairn-demo/greeting@1.0.0"]).json;
+    const s = cairn(["status", demoSpec]).json;
     return s.corroborations === 3 ? s : undefined;
   });
   assert(status.hasQuorum === true, "3/3 independent corroborations, quorum reached on-chain");
   const indexedVerified = await waitFor("indexer to show the demo package verified", async () => {
     const d = await (await fetch(`${INDEXER}/packages/${pub.json.packageId}`)).json();
-    return d.status === "VERIFIED" ? d : undefined;
+    // quorum (VERIFIED) arrives at 2 of 3; wait for the third corroboration too
+    return d.status === "VERIFIED" && d.corroborations === 3 ? d : undefined;
   });
   assert(indexedVerified.corroborations === 3, "indexer: demo package VERIFIED with 3 corroborations");
 
@@ -189,7 +193,7 @@ async function main() {
   assert(rechecks.every((r) => r.results[0].action === "diverged"), "every attester reported a divergence");
   const observed = new Set(rechecks.map((r) => r.results[0].observed));
   assert(observed.size === 1 && !observed.has(attestedDigest), "all three observed the same, different digest");
-  const after = cairn(["status", "@cairn-demo/greeting@1.0.0"]).json;
+  const after = cairn(["status", demoSpec]).json;
   assert(after.divergences.length === 3 && after.hasQuorum === false, "3 divergences on-chain; quorum revoked");
   const indexedDivergent = await waitFor("indexer to show the divergence", async () => {
     const d = await (await fetch(`${INDEXER}/packages/${id}`)).json();

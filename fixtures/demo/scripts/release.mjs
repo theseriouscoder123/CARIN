@@ -1,31 +1,42 @@
-// pnpm demo:release — the maintainer's ordinary release: pack the clean fixture and
-// publish 1.0.0 to the local registry. Attesting it is a separate, visible step
-// (`pnpm cairn publish …`), because that is the part of the demo CAIRN adds.
+// pnpm demo:release — the maintainer's ordinary release. Picks the first version 1.0.N
+// that is neither attested on-chain nor present on the local registry (the chain is
+// append-only, so each rehearsal needs a fresh one), builds it, publishes it to the local
+// registry, and resolves the consumer project against it. Attesting is the separate,
+// visible step: `cairn publish fixtures/demo/cairn-demo-greeting.tgz`.
+//
+// Chain: CAIRN_RPC_URL (local Hardhat by default; demo:release:base-sepolia sets it).
 import { createHash } from "node:crypto";
-import { readFileSync, renameSync } from "node:fs";
+import { copyFileSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { DEMO, PKG, REGISTRY, TARBALL, VERSION, c, ensureDemoAuth, npm, pack } from "./lib.mjs";
+import { DEMO, PKG, REGISTRY, ROOT, TARBALL, attestedOnChain, c, ensureDemoAuth, fail, npm, pack, stageFixture, writeDemoVersion } from "./lib.mjs";
 
 await ensureDemoAuth();
 
-const packed = pack(join(DEMO, "greeting"), DEMO);
-if (packed !== TARBALL) renameSync(packed, TARBALL);
-const bytes = readFileSync(TARBALL);
-const sha = createHash("sha256").update(bytes).digest("hex");
-
-const existing = npm(["view", `${PKG}@${VERSION}`, "dist.tarball"], { allowFail: true });
-if (existing.status === 0 && existing.stdout.trim() !== "") {
-  console.log(`\n  ${PKG}@${VERSION} is already on ${REGISTRY}.`);
-  console.log(`  ${c.dim("For a clean run: stop Verdaccio, pnpm registry:reset, pnpm registry:up.")}\n`);
-} else {
-  npm(["publish", TARBALL, "--registry", `${REGISTRY}/`]);
-  console.log(`\n  ${c.green("✓")} published ${c.bold(`${PKG}@${VERSION}`)} to ${REGISTRY}`);
+let version;
+for (let n = 0; n < 500; n++) {
+  const candidate = `1.0.${n}`;
+  const onRegistry = npm(["view", `${PKG}@${candidate}`, "version"], { allowFail: true }).stdout.trim() !== "";
+  if (onRegistry) continue;
+  if (await attestedOnChain(candidate)) continue;
+  version = candidate;
+  break;
 }
+if (!version) fail("no free demo version found below 1.0.500");
 
-// The consumer resolves against the local registry, like any project pointed at a mirror.
+const { pkgDir } = stageFixture(join(ROOT, ".cairn", "demo-build"), version);
+const built = pack(pkgDir, join(ROOT, ".cairn", "demo-build"));
+copyFileSync(built, TARBALL);
+npm(["publish", TARBALL, "--registry", `${REGISTRY}/`]);
+writeDemoVersion(version);
+
+// The consumer is an ordinary project pointed at the local registry, like any mirror.
+const template = readFileSync(join(DEMO, "consumer", "package.template.json"), "utf8");
+writeFileSync(join(DEMO, "consumer", "package.json"), template.replace("{{DEMO_VERSION}}", version));
 npm(["install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund"], { cwd: join(DEMO, "consumer") });
 
-console.log(`  ${c.dim("tarball")}   ${TARBALL}`);
+const sha = createHash("sha256").update(readFileSync(TARBALL)).digest("hex");
+console.log(`\n  ${c.green("✓")} published ${c.bold(`${PKG}@${version}`)} to ${REGISTRY}`);
+console.log(`  ${c.dim("tarball")}   fixtures/demo/cairn-demo-greeting.tgz`);
 console.log(`  ${c.dim("sha256")}    ${sha}`);
 console.log(`  ${c.green("✓")} consumer lockfile resolved against ${REGISTRY}`);
-console.log(`\n  next: ${c.cyan("pnpm cairn publish fixtures/demo/cairn-demo-greeting-1.0.0.tgz")}\n`);
+console.log(`\n  next: ${c.cyan("cairn publish fixtures/demo/cairn-demo-greeting.tgz")}\n`);

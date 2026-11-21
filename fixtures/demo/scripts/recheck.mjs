@@ -1,7 +1,9 @@
 // pnpm demo:recheck — trigger every local attester's Divergence Monitor for the demo
 // package now (POST /admin/recheck), rather than waiting for the interval on stage.
 import { packageId } from "../../../packages/core/dist/index.js";
-import { PKG, VERSION, c } from "./lib.mjs";
+import { PKG, c, readDemoVersion } from "./lib.mjs";
+
+const VERSION = readDemoVersion();
 
 const id = packageId("npm", PKG, VERSION);
 // The attested digest, read from any attester's view, distinguishes "still fine" from

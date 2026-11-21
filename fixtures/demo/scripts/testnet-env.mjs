@@ -18,7 +18,9 @@ process.loadEnvFile(keysFile);
 const env = {
   ...process.env,
   CAIRN_RPC_URL: process.env.CAIRN_BASE_SEPOLIA_RPC_URL ?? "https://sepolia.base.org",
-  CAIRN_PRIVATE_KEY: process.env.CAIRN_PRIVATE_KEY ?? process.env.CAIRN_PUBLISHER_KEY
+  CAIRN_PRIVATE_KEY: process.env.CAIRN_PRIVATE_KEY ?? process.env.CAIRN_PUBLISHER_KEY,
+  CAIRN_DEMO_INDEXER_URL: process.env.CAIRN_DEMO_INDEXER_URL ?? "https://cairn-indexer.onrender.com",
+  CAIRN_DEMO_DASHBOARD_URL: process.env.CAIRN_DEMO_DASHBOARD_URL ?? "https://cairn-two-ecru.vercel.app"
 };
 const [cmd, ...args] = process.argv.slice(2);
 if (!cmd) {

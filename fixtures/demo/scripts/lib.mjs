@@ -1,7 +1,7 @@
-// Shared helpers for the tamper demo scripts. Local Verdaccio only.
+// Shared helpers for the tamper demo scripts (local Verdaccio; local chain or Base Sepolia).
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -10,8 +10,48 @@ export const DEMO = join(ROOT, "fixtures", "demo");
 export const STATE = join(ROOT, ".cairn", "verdaccio");
 export const REGISTRY = process.env.CAIRN_DEMO_REGISTRY ?? "http://127.0.0.1:4873";
 export const PKG = "@cairn-demo/greeting";
-export const VERSION = "1.0.0";
-export const TARBALL = join(DEMO, "cairn-demo-greeting-1.0.0.tgz");
+/** Fixed path for the stage command; the version inside changes per run. */
+export const TARBALL = join(DEMO, "cairn-demo-greeting.tgz");
+const DEMO_STATE = join(ROOT, ".cairn", "demo-state.json");
+
+/**
+ * The chain is append-only, so every rehearsal (and the pitch) needs a version that has
+ * never been attested. demo:release picks it and records it here for tamper/recheck.
+ */
+export function readDemoVersion() {
+  if (!existsSync(DEMO_STATE)) fail("no demo release yet — run pnpm demo:release first");
+  return JSON.parse(readFileSync(DEMO_STATE, "utf8")).version;
+}
+export function writeDemoVersion(version) {
+  mkdirSync(dirname(DEMO_STATE), { recursive: true });
+  writeFileSync(DEMO_STATE, JSON.stringify({ version, at: new Date().toISOString() }));
+}
+
+/** Whether name@version is already attested on the chain at CAIRN_RPC_URL. */
+export async function attestedOnChain(version) {
+  const core = await import("../../../packages/core/dist/index.js");
+  const rpcUrl = process.env.CAIRN_RPC_URL ?? core.DEFAULT_RPC_URL;
+  let client;
+  try {
+    const chainId = await core.getChainId(rpcUrl);
+    const { address } = core.resolveRegistryAddress({ chainId });
+    client = await core.CairnClient.connect({ rpcUrl, registryAddress: address });
+  } catch (err) {
+    fail(`cannot read the chain at ${rpcUrl} to choose a fresh demo version: ${err instanceof Error ? err.message : err}`);
+  }
+  return (await client.getRecord(core.packageId("npm", PKG, version))).exists;
+}
+
+/** Copy the fixture into `dir` with its version set; returns the package directory. */
+export function stageFixture(dir, version) {
+  rmSync(dir, { recursive: true, force: true });
+  const pkgDir = join(dir, "greeting");
+  cpSync(join(DEMO, "greeting"), pkgDir, { recursive: true });
+  const manifest = JSON.parse(readFileSync(join(pkgDir, "package.json"), "utf8"));
+  manifest.version = version;
+  writeFileSync(join(pkgDir, "package.json"), JSON.stringify(manifest, null, 2) + "\n");
+  return { pkgDir, manifest };
+}
 
 const tty = process.stdout.isTTY;
 export const c = {

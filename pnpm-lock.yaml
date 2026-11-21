@@ -184,6 +184,9 @@ importers:
       verdaccio:
         specifier: 6.11.2
         version: 6.11.2(bare-buffer@3.7.3)(supports-color@7.2.0)(typanion@3.14.0)
+      viem:
+        specifier: 2.57.20
+        version: 2.57.20(typescript@5.9.3)(zod@4.6.7)
 
   apps/attester:
     dependencies:

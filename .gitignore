@@ -33,3 +33,4 @@ fixtures/demo/consumer/package-lock.json
 
 # vercel CLI link state
 .vercel
+fixtures/demo/consumer/package.json

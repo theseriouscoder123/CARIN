@@ -31,7 +31,12 @@
     "fund:base-sepolia": "pnpm --filter @cairn/contracts fund:base-sepolia",
     "attesters:base-sepolia": "pnpm --filter @cairn/attester build && node apps/attester/scripts/up.mjs --keys .cairn/keys/base-sepolia.env --rpc https://sepolia.base.org --registry http://127.0.0.1:4873 --log-chunk 200 --poll-ms 4000",
     "cairn:base-sepolia": "node fixtures/demo/scripts/testnet-env.mjs node packages/cli/dist/index.js",
-    "seed:base-sepolia": "node fixtures/demo/scripts/testnet-env.mjs pnpm --filter @cairn/contracts seed"
+    "seed:base-sepolia": "node fixtures/demo/scripts/testnet-env.mjs pnpm --filter @cairn/contracts seed",
+    "demo:release:base-sepolia": "node fixtures/demo/scripts/testnet-env.mjs node fixtures/demo/scripts/release.mjs",
+    "demo:verify:base-sepolia": "node fixtures/demo/scripts/testnet-env.mjs node packages/cli/dist/index.js verify --lockfile fixtures/demo/consumer/package-lock.json",
+    "demo:preflight": "node fixtures/demo/scripts/preflight.mjs",
+    "demo:preflight:base-sepolia": "node fixtures/demo/scripts/testnet-env.mjs node fixtures/demo/scripts/preflight.mjs",
+    "demo:recheck:base-sepolia": "node fixtures/demo/scripts/recheck.mjs"
   },
   "devDependencies": {
     "@cairn/cli": "workspace:*",
@@ -39,6 +44,7 @@
     "eslint": "10.15.0",
     "turbo": "2.11.13",
     "typescript": "5.9.3",
-    "verdaccio": "6.11.2"
+    "verdaccio": "6.11.2",
+    "viem": "2.57.20"
   }
 }

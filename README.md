@@ -60,7 +60,8 @@ could not economically achieve: **independent re-verification of the artifact it
    distributed across the attester set rather than concentrated in any operator.
 4. **CI enforces.** `cairn verify` resolves the lockfile, digests every artifact it is
    about to install, checks on-chain quorum state, and fails the build with a non-zero exit
-   code on anything unattested, under-quorum, or divergent.
+   code on anything divergent or under quorum. Unattested packages warn by default; block them
+   too with `--fail-on unattested`.
 
 CAIRN never tries to decide whether code is *malicious*. It detects **divergence** — the
 same version string resolving to different bytes than were attested. That is the mechanical

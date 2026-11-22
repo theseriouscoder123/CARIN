@@ -118,6 +118,11 @@ export default function CheckPage() {
   const pages = Math.max(1, Math.ceil(visible.length / PAGE));
   const pageRows = visible.slice(page * PAGE, page * PAGE + PAGE);
 
+  function toggle(s: CheckStatus) {
+    setOnly(only === s ? "ALL" : s);
+    setPage(0);
+  }
+
   function exportReport() {
     if (!scan) return;
     const report = {
@@ -211,7 +216,7 @@ export default function CheckPage() {
             <button type="button" disabled={busy} onClick={() => void loadExample()} className="btn-outline">
               <IconFile size={14} /> Try a real project
             </button>
-            <span className="text-xs text-muted">437 dependencies: express, webpack, eslint, jest</span>
+            <span className="text-xs text-muted">express, webpack, eslint and jest</span>
             {progress ? (
               <span className="ml-auto flex items-center gap-2 font-mono text-xs text-warn-ink">
                 <span className="h-3 w-3 animate-spin rounded-full border-2 border-warn border-t-transparent" />
@@ -274,7 +279,7 @@ export default function CheckPage() {
               tone="text-ok-ink"
               sub={counts.PENDING > 0 ? `+${counts.PENDING} awaiting quorum` : "independently confirmed"}
               active={only === "VERIFIED"}
-              onClick={() => setOnly(only === "VERIFIED" ? "ALL" : "VERIFIED")}
+              onClick={() => toggle("VERIFIED")}
             />
             <SummaryCard
               label="Unattested"
@@ -284,17 +289,17 @@ export default function CheckPage() {
               tone="text-muted"
               sub="no record on-chain"
               active={only === "UNATTESTED"}
-              onClick={() => setOnly(only === "UNATTESTED" ? "ALL" : "UNATTESTED")}
+              onClick={() => toggle("UNATTESTED")}
             />
             <SummaryCard
-              label="Integrity breaches"
+              label="Divergence reports"
               icon={<IconX size={22} strokeWidth={3} />}
               value={counts.DIVERGENT}
               word="Divergent"
               tone={counts.DIVERGENT > 0 ? "text-bad" : "text-ink"}
-              sub={counts.DIVERGENT > 0 ? "cairn verify would block this build" : "no tampered artifacts"}
+              sub={counts.DIVERGENT > 0 ? "cairn verify would block this build" : "no divergence reports"}
               active={only === "DIVERGENT"}
-              onClick={() => setOnly(only === "DIVERGENT" ? "ALL" : "DIVERGENT")}
+              onClick={() => toggle("DIVERGENT")}
               alert={counts.DIVERGENT > 0}
             />
           </div>

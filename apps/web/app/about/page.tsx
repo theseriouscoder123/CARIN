@@ -25,7 +25,7 @@ const STEPS = [
     icon: <IconTerminal size={18} />,
     title: "Build gate",
     cmd: "cairn verify",
-    body: "Digests every artifact in your lockfile from the bytes your machine receives, reads the contract, and fails on anything unattested, under quorum or divergent."
+    body: "Digests every artifact in your lockfile from the bytes your machine receives, reads the contract, and fails on anything divergent or under quorum. Unattested packages warn by default; --fail-on unattested blocks them."
   }
 ];
 

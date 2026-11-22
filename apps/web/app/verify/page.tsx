@@ -68,7 +68,7 @@ export default function VerifyPage() {
         title="Verify a package"
         sub={
           <>
-            Check one exact version against the contract — computed and read in your browser, no CAIRN server involved.{" "}
+            Check one exact version against the contract — computed and read in your browser.{" "}
             <Tip>This reads the attested state. Digesting the bytes you would actually install is what the CLI does.</Tip>
           </>
         }
@@ -114,7 +114,7 @@ export default function VerifyPage() {
                   </span>
                 </div>
                 {status === "UNATTESTED" ? (
-                  <p className="mt-3 text-[14px] text-ink-2">No attestation exists on-chain for this exact version. A CI gate with fail-on unattested would block it.</p>
+                  <p className="mt-3 text-[14px] text-ink-2">No attestation exists on-chain for this exact version. cairn verify warns about it by default, and blocks it with --fail-on unattested.</p>
                 ) : (
                   <dl className="mt-4 grid gap-x-6 gap-y-3 text-[13px] sm:grid-cols-[max-content_1fr]">
                     <dt className="label pt-0.5">Artifact digest</dt>

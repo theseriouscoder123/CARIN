@@ -218,7 +218,7 @@ export function Footer() {
               "—"
             )}
           </span>
-          <span>Read-only view of on-chain state · nothing on this site is hardcoded</span>
+          <span>Read-only view of on-chain state</span>
         </div>
       </div>
     </footer>

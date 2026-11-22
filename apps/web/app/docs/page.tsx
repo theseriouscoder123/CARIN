@@ -52,8 +52,8 @@ export default function DocsPage() {
           title="Getting started"
           sub={
             <>
-              CAIRN checks that every dependency you install is byte-for-byte what its maintainer published — confirmed on-chain by independent
-              attesters — and fails the build when it is not. It works with your existing <span className="rounded bg-code px-1 font-mono text-[13px] text-ink">npm</span> lockfile.
+              CAIRN checks that attested dependencies you install are byte-for-byte what their publisher attested — confirmed on-chain by independent
+              attesters — and fails the build when they are not. It works with your existing <span className="rounded bg-code px-1 font-mono text-[13px] text-ink">npm</span> lockfile.
             </>
           }
         />
@@ -90,7 +90,7 @@ export default function DocsPage() {
                 {[
                   ["PASS", "Attested, the bytes match, independent attesters reached quorum."],
                   ["UNDER_QUORUM", "Attested and matching, but not enough attesters have confirmed it yet."],
-                  ["UNATTESTED", "No attestation exists for this exact version."],
+                  ["UNATTESTED", "No attestation exists for this exact version. Warns by default; blocks with --fail-on unattested."],
                   ["DIVERGENT", "Attested — but the bytes you received differ. The alarm."],
                   ["CONTESTED", "Your bytes match, but attesters recorded divergence for this version."],
                   ["UNKNOWN", "The chain or registry could not be reached. Treated as failure: CAIRN fails closed."]

@@ -18,15 +18,13 @@ export interface Release {
   d: PackageDetail | undefined;
   c: ChainRecord | undefined;
   detail: PollState<PackageDetail>;
-  chain: PollState<{ record: ChainRecord; corroborated: Record<string, boolean> }>;
+  chain: PollState<{ record: ChainRecord; corroborated: Record<string, boolean | undefined> }>;
   timeline: PollState<{ events: TimelineEvent[] }>;
   attesters: AttestersResponse | undefined;
   health: Health | undefined;
   registry: Hex | undefined;
   status: ChainStatus;
-  corroborated: Record<string, boolean>;
-  /** True once per-attester flags were read for the full attester set. */
-  flagsReady: boolean;
+  corroborated: Record<string, boolean | undefined>;
   who: (addr?: string) => string;
 }
 
@@ -46,14 +44,14 @@ export function useRelease(raw: string): Release {
   // The configured registry wins; only if none is configured do we use the indexer's.
   const registry = (REGISTRY_ADDR ?? health.data?.registry) as Hex | undefined;
   const set = attesters.data?.attesters ?? [];
-  const chain = usePoll<{ record: ChainRecord; corroborated: Record<string, boolean> }>(
+  const chain = usePoll<{ record: ChainRecord; corroborated: Record<string, boolean | undefined> }>(
     valid && registry
       ? async () => {
           const [record, flags] = await Promise.all([
             readRecord(registry, packageId),
-            Promise.all(set.map((a) => hasCorroborated(registry, packageId, a.address).catch(() => false)))
+            Promise.all(set.map((a) => hasCorroborated(registry, packageId, a.address).catch(() => undefined)))
           ]);
-          return { record, corroborated: Object.fromEntries(set.map((a, i) => [a.address.toLowerCase(), flags[i] ?? false])) };
+          return { record, corroborated: Object.fromEntries(set.map((a, i) => [a.address.toLowerCase(), flags[i]])) };
         }
       : null,
     `c-${packageId}-${registry}-${set.length}`
@@ -80,7 +78,6 @@ export function useRelease(raw: string): Release {
     registry,
     status: c ? chainStatus(c) : (d?.status ?? "PENDING"),
     corroborated: chain.data?.corroborated ?? {},
-    flagsReady: set.length > 0 && set.every((a) => chain.data?.corroborated[a.address.toLowerCase()] !== undefined),
     who: (addr?: string) => (addr ? (labels.get(addr.toLowerCase()) ?? short(addr)) : "—")
   };
 }
@@ -112,14 +109,14 @@ export function VerdictPanel({ r }: { r: Release }) {
         </div>
         <div className="space-y-4 p-5">
           <p className="text-[15px] text-ink">
-            The registry is serving different bytes for this exact version than its maintainer attested.{" "}
+            Attesters received different bytes from the registry for this exact version than its publisher attested.{" "}
             <b>{c.divergences.length}</b> independent attester{c.divergences.length === 1 ? "" : "s"} re-downloaded it and reported the mismatch on-chain;{" "}
             <span className="font-mono text-[13px]">cairn verify</span> fails any build that installs it.
           </p>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div className="rounded border border-ok/30 bg-ok-soft p-3">
               <p className="label flex items-center gap-1.5 !text-ok-ink">
-                <IconCheck size={12} strokeWidth={3} /> Attested by the maintainer
+                <IconCheck size={12} strokeWidth={3} /> Attested by the publisher
               </p>
               <Digest value={c.artifactDigest} full className="mt-1.5 text-xs text-ok-ink" />
             </div>
@@ -137,9 +134,9 @@ export function VerdictPanel({ r }: { r: Release }) {
 
   const look =
     status === "VERIFIED"
-      ? { box: "border-ok/40 bg-ok-soft", icon: <IconShield size={26} />, ink: "text-ok-ink", title: "Verified", sub: `${c?.corroborations ?? confirmed} of ${total} independent attesters re-downloaded this release and confirmed its digest.` }
+      ? { box: "border-ok/40 bg-ok-soft", icon: <IconShield size={26} />, ink: "text-ok-ink", title: "Verified", sub: `${c?.corroborations ?? r.d?.corroborations ?? confirmed} of ${total} independent attesters re-downloaded this release and confirmed its digest.` }
       : status === "PENDING"
-        ? { box: "border-warn/40 bg-warn-soft", icon: <IconClock size={26} />, ink: "text-warn-ink", title: "Awaiting quorum", sub: `${c?.corroborations ?? 0} of ${c?.threshold ?? "?"} required attester confirmations so far.` }
+        ? { box: "border-warn/40 bg-warn-soft", icon: <IconClock size={26} />, ink: "text-warn-ink", title: "Awaiting quorum", sub: `${c?.corroborations ?? r.d?.corroborations ?? 0} of ${c?.threshold ?? "?"} required attester confirmations so far.` }
         : { box: "border-line-strong bg-code", icon: <IconBox size={26} />, ink: "text-muted", title: "Not attested", sub: "No attestation exists on-chain for this exact version." };
 
   return (
@@ -148,6 +145,7 @@ export function VerdictPanel({ r }: { r: Release }) {
       <div className="min-w-48 flex-1">
         <p className={`text-lg font-bold ${look.ink}`}>{look.title}</p>
         <p className="text-[13px] text-ink-2">{look.sub}</p>
+        {!c ? <p className="mt-1 text-xs text-warn-ink">{r.chain.error ? "Indexer view only — the chain could not be read." : "Indexer view — confirming on the chain…"}</p> : null}
       </div>
       {c?.exists ? (
         <div className="w-full rounded border border-line bg-white px-3 py-2 sm:w-auto">
@@ -176,7 +174,7 @@ export function AttesterConsensus({ r }: { r: Release }) {
             ? { cls: "border-bad/40 bg-bad-soft", ink: "text-bad-ink", icon: <IconX size={14} strokeWidth={3} />, text: "Different bytes" }
             : ok
               ? { cls: "border-ok/30 bg-ok-soft", ink: "text-ok-ink", icon: <IconCheck size={14} strokeWidth={3} />, text: "Digest matches" }
-              : { cls: "border-line bg-code", ink: "text-muted", icon: <IconClock size={14} />, text: r.flagsReady ? "Not yet reported" : "Checking…" };
+              : { cls: "border-line bg-code", ink: "text-muted", icon: <IconClock size={14} />, text: ok === false ? "Not yet reported" : "Checking…" };
           return (
             <div key={a.address} className={`rounded border p-3 ${look.cls}`}>
               <p className="truncate font-mono text-[13px] font-semibold text-ink">{a.label ?? short(a.address)}</p>
@@ -325,7 +323,7 @@ export function DivergenceList({ r }: { r: Release }) {
         ))}
       </ul>
       <p className="border-t border-line px-5 py-2.5 text-xs text-muted">
-        Which files changed: <span className="font-mono text-ink-2">cairn verify</span> prints the per-file delta against the attested payload.
+        Which files changed: <span className="font-mono text-ink-2">cairn verify</span> prints the per-file delta where the attested payload is available.
       </p>
     </Card>
   );

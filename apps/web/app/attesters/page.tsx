@@ -197,12 +197,12 @@ export default function AttestersPage() {
             </p>
             <h2 className="text-xl font-semibold">Run an attester node</h2>
             <p className="mt-2 text-[14px] text-ink-2">
-              A node needs an Ethereum key registered in the QuorumPolicy contract, an RPC endpoint and outbound access to the npm registry. It holds no
-              state worth protecting — the chain is its memory.
+              A node needs an Ethereum key registered in the QuorumPolicy contract, an RPC endpoint and outbound access to the npm registry. Apart from its key it holds no
+              critical state — the chain is its memory.
             </p>
             <p className="mt-3 flex items-center gap-1.5 text-xs text-muted">
-              Attester set is admin-managed in this deployment
-              <Tip>The admin can add or remove attesters but cannot alter or delete any recorded attestation. Permissionless, staked attesters are roadmap work.</Tip>
+              Attester set is admin-managed, and all three nodes are run by the CAIRN team on one machine
+              <Tip>Separate processes with separate keys, but not yet independent parties. The admin can add or remove attesters but cannot alter or delete any recorded attestation. Permissionless, staked attesters are roadmap work.</Tip>
             </p>
             <div className="mt-5 flex flex-wrap gap-3">
               <Link href="/docs#attester" className="btn-primary">

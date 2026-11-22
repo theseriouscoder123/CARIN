@@ -1,0 +1,24 @@
+# The Vercel CLI does not apply nested/gitignored paths on its own: list everything that
+# must never leave this machine. Verify with `vercel deploy --dry --json`.
+.cairn
+.attester-state
+.turbo
+.claude
+.env
+.env.*
+!.env.example
+*.env
+*.log
+*.pem
+*.key
+deck
+node_modules
+.next
+dist
+coverage
+*.tsbuildinfo
+packages/contracts/artifacts
+packages/contracts/cache
+packages/cli/standalone/dist
+packages/cli/standalone/*.tgz
+fixtures/demo/consumer/node_modules
